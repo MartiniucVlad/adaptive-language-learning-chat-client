@@ -95,8 +95,7 @@
             ankiReview: pendingReview ? {
                 tickedNotes: pendingReview.ticked_notes,
                 messageReview: pendingReview.message_review,
-                deckName: pendingReview.deck_name,
-                learner: pendingReview.learner
+                deckName: pendingReview.deck_name
             } : undefined
           }
         ]);
@@ -134,8 +133,7 @@
                 ankiReview: {
                   tickedNotes: data.ticked_notes,
                   messageReview: data.message_review,
-                  deckName: data.deck_name,
-                  learner: data.learner
+                  deckName: data.deck_name
                 }
               };
             }
@@ -162,20 +160,33 @@
     }, [messages]);
   
     // 3. ACTIONS
-    const loadChatHistory = async (convId: string) => {
-      try {
-        const response = await api.get(`/chat/history/${convId}`);
-        setMessages(response.data.map((msg: any) => ({
-          from: msg.sender,
-          messageId: msg.message_id,
-          content: msg.content,
-          timestamp: msg.timestamp,
-          isMine: msg.sender === currentUser
-        })));
-      } catch (err) {
-        console.error("Failed to load history", err);
-      }
-    };
+    // src/components/chat/useChatLogic.ts
+
+const loadChatHistory = async (convId: string) => {
+  try {
+    const response = await api.get(`/chat/history/${convId}`);
+
+    setMessages(response.data.map((msg: any) => ({
+      from: msg.sender,
+      messageId: msg.message_id,
+      content: msg.content,
+      timestamp: msg.timestamp,
+      isMine: msg.sender === currentUser,
+
+      // --- NEW MAPPING ---
+      // If msg.anki_review exists, we pass it through.
+      // Since we removed 'learner', we rely on 'from' (msg.sender) if we ever need to know who it is.
+      ankiReview: msg.anki_review ? {
+          tickedNotes: msg.anki_review.tickedNotes,
+          messageReview: msg.anki_review.messageReview,
+          deckName: msg.anki_review.deckName,
+      } : undefined
+
+    })));
+  } catch (err) {
+    console.error("Failed to load history", err);
+  }
+};
   
     const handleSelectConversation = async (conv: ConversationSummary) => {
       if (activeConversationId === conv.id) return;

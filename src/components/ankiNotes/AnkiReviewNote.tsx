@@ -1,9 +1,10 @@
 // components/AnkiReviewNote.tsx
 import React, { useState } from 'react';
-import { Box, Paper, Typography, Collapse, Chip } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import SchoolIcon from '@mui/icons-material/School';
+import { Box, Typography, Collapse, Chip, alpha } from '@mui/material';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { AnkiReview } from './types';
 
 interface Props {
@@ -12,89 +13,150 @@ interface Props {
 }
 
 export const AnkiReviewNote = ({ review, isMine }: Props) => {
-  const [expanded, setExpanded] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const hasMatches = review.tickedNotes.length > 0;
+
+  const colors = {
+    success: {
+      main: '#fbc02d',
+      light: '#fffde7',
+      text: '#5d4037',
+      hover: '#fff9c4'    // New Solid Hover Color (Yellow)
+    },
+    fail: {
+      main: '#ef5350',
+      light: '#ffebee',
+      text: '#c62828',
+      hover: '#ffcdd2'    // New Solid Hover Color (Red)
+    }
+  };
+
+  const activeColor = hasMatches ? colors.success : colors.fail;
 
   return (
     <Box
       sx={{
         display: 'flex',
         justifyContent: isMine ? 'flex-end' : 'flex-start',
-        mt: -1,
-        mb: 2,
+        marginTop: '-6px',
+        marginBottom: '12px',
+        paddingX: 2,
         position: 'relative',
         zIndex: 1,
-        px: 2,
       }}
     >
-      <Paper
-        elevation={2}
-        onClick={() => setExpanded(!expanded)}
+      {/* --- MODIFY THIS BOX (The Main Container) --- */}
+      <Box
+        onClick={() => setIsOpen(!isOpen)}
         sx={{
-          bgcolor: '#fff9c4',
-          color: '#5d4037',
-          // 1. Reduce padding for compact look
-          p: expanded ? 1 : '4px 8px',
+          display: 'inline-flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+
+          bgcolor: activeColor.light,
+          border: `1px solid ${activeColor.main}`,
+
           borderRadius: 2,
-          // 2. Auto width when minimized, max 65% when expanded
-          width: expanded ? 'auto' : 'fit-content',
-          maxWidth: '65%',
-          cursor: 'pointer',
-          border: '1px solid #fbc02d',
           borderTopLeftRadius: isMine ? 2 : 0,
           borderTopRightRadius: isMine ? 0 : 2,
-          transition: 'all 0.2s ease-in-out', // Smooth transition for width change
+
+          maxWidth: isOpen ? '75%' : 'auto',
+          minWidth: '100px',
+
+          cursor: 'pointer',
+          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+
+          // --- THE FIX IS HERE ---
+          '&:hover': {
+            // We use the SOLID hover color defined above, NOT alpha()
+            bgcolor: activeColor.hover,
+            boxShadow: `0 2px 8px ${alpha(activeColor.main, 0.25)}`
+          }
         }}
       >
+
         {/* Header */}
         <Box
           sx={{
             display: 'flex',
             alignItems: 'center',
-            // 3. Tight gap for minimized state
-            gap: expanded ? 1 : 0.5,
-            justifyContent: 'space-between', // Ensure arrow is pushed to the right
+            width: '100%',
+            padding: '6px 10px',
+            gap: 1
           }}
         >
-          {/* 4. Hide Icon when minimized */}
-          {expanded && <SchoolIcon sx={{ fontSize: 16, color: '#f57f17' }} />}
+          {hasMatches ? (
+            <CheckCircleOutlineIcon sx={{ fontSize: 16, color: activeColor.main }} />
+          ) : (
+            <ErrorOutlineIcon sx={{ fontSize: 16, color: activeColor.main }} />
+          )}
 
-          <Typography variant="caption" fontWeight="bold" sx={{ whiteSpace: 'nowrap' }}>
-            Review Note
-            {/* 5. Hide card count when minimized */}
-            {expanded && review.tickedNotes.length > 0 && ` • ${review.tickedNotes.length} Cards`}
+          <Typography
+            variant="caption"
+            sx={{
+              color: activeColor.text,
+              fontWeight: 700,
+              userSelect: 'none',
+              lineHeight: 1
+            }}
+          >
+            {hasMatches ? "Review Passed" : "No Matches"}
           </Typography>
 
-          {/* Spacer to push arrow to the right in expanded mode */}
-          {expanded && <Box sx={{ flexGrow: 1 }} />}
+          <Box sx={{ flexGrow: 1 }} />
 
-          {/* Arrow Icon */}
-          {expanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+          {isOpen ? (
+            <KeyboardArrowUpIcon sx={{ fontSize: 16, color: activeColor.text, opacity: 0.6 }} />
+          ) : (
+            <KeyboardArrowDownIcon sx={{ fontSize: 16, color: activeColor.text, opacity: 0.6 }} />
+          )}
         </Box>
 
-        {/* Collapsible Content (Unchanged) */}
-        <Collapse in={expanded}>
-          <Box sx={{ mt: 1 }}>
-            <Typography variant="body2" sx={{ fontSize: '0.85rem', fontStyle: 'italic', mb: 1 }}>
+        {/* Body */}
+        <Collapse in={isOpen} timeout="auto" unmountOnExit sx={{ width: '100%' }}>
+          <Box
+            sx={{
+              padding: '0 10px 10px 10px',
+              borderTop: `1px dashed ${alpha(activeColor.main, 0.3)}`,
+              marginTop: '2px',
+              paddingTop: '8px'
+            }}
+          >
+            <Typography
+              variant="body2"
+              sx={{
+                color: activeColor.text,
+                fontSize: '0.8rem',
+                fontStyle: 'italic',
+                marginBottom: 1.5,
+                lineHeight: 1.4
+              }}
+            >
               "{review.messageReview}"
             </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-              {review.tickedNotes.map((note) => (
-                <Chip
-                  key={note.id}
-                  label={note.word}
-                  size="small"
-                  sx={{
-                    bgcolor: '#fbc02d',
-                    color: 'white',
-                    height: 20,
-                    fontSize: '0.7rem'
-                  }}
-                />
-              ))}
-            </Box>
+
+            {hasMatches && (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                {review.tickedNotes.map((note) => (
+                  <Chip
+                    key={note.id}
+                    label={note.word}
+                    size="small"
+                    sx={{
+                      height: 20,
+                      fontSize: '0.7rem',
+                      backgroundColor: activeColor.main,
+                      color: '#fff',
+                      fontWeight: 600,
+                      '& .MuiChip-label': { padding: '0 8px' }
+                    }}
+                  />
+                ))}
+              </Box>
+            )}
           </Box>
         </Collapse>
-      </Paper>
+      </Box>
     </Box>
   );
 };

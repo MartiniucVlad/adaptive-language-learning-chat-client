@@ -4,7 +4,7 @@ import {
   Box, Typography, Stack, TextField, InputAdornment, IconButton, Tooltip
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import ChatIcon from '@mui/icons-material/Chat';
+import newChatIcon from '../../assets/new_chat_icon.png';
 import LogoutIcon from '@mui/icons-material/Logout';
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
 import type {ConversationSummary} from './types';
@@ -33,12 +33,30 @@ export const ChatSidebar = ({ conversations, activeId, currentUser, onSelect, on
       <Box sx={{ p: 2, bgcolor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Stack direction="row" spacing={1} alignItems="center">
           <Tooltip title="New Chat">
-            <IconButton onClick={onNewChat} color="primary" sx={{ bgcolor: '#e3f2fd' }}>
-              <ChatIcon fontSize="small" />
+            <IconButton
+              onClick={onNewChat}
+              sx={{
+                p: 0,
+                width: 72,
+                height: 72,
+                '&:hover': { bgcolor: '#f5f5f5' }
+              }}
+            >
+              <Box
+                component="img"
+                src={newChatIcon}
+                alt="New Chat"
+                sx={{
+                  // CHANGE THESE VALUES:
+                  width: 54,  // increased from 24
+                  height: 54, // increased from 24
+                  objectFit: 'contain'
+                }}
+              />
             </IconButton>
           </Tooltip>
-          <Typography variant="h6" fontWeight="bold" color="text.primary">Chats</Typography>
-        </Stack>
+  <Typography variant="h6" fontWeight="bold" color="text.primary">Chats</Typography>
+</Stack>
         <IconButton onClick={onLogout} color="error" size="small">
           <LogoutIcon fontSize="small" />
         </IconButton>

@@ -23,7 +23,6 @@ export interface AnkiReview {
   tickedNotes: Array<{ id: string; word: string }>;
   messageReview: string;
   deckName: string;
-  learner: string;
 }
 
 export interface Message {
