@@ -1,12 +1,13 @@
 import { Box, AppBar, Toolbar, Typography, Avatar, IconButton, Tooltip, Paper } from '@mui/material';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SearchIcon from '@mui/icons-material/Search';
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
+import SemanticSearchPng from '../../assets/semantic-search-icon.png';
 import Linkify from 'linkify-react';
-import type {Message, ConversationSummary} from './types';
+import type { Message, ConversationSummary } from './types';
 import { stringToColor, getInitials, getConversationName } from './utils';
 import MessageInput from './MessageInput';
+import { AnkiReviewNote } from '../ankiNotes/AnkiReviewNote.tsx';
 
 interface ChatWindowProps {
   activeId: string | null;
@@ -52,7 +53,13 @@ export const ChatWindow = ({
             </Typography>
           </Box>
           <Tooltip title="Semantic Search">
-            <IconButton onClick={onOpenSemanticSearch} color="primary"><AutoAwesomeIcon /></IconButton>
+            <IconButton onClick={onOpenSemanticSearch} color="primary">
+              <img
+                src={SemanticSearchPng}
+                alt="Semantic Search"
+                style={{ width: '24px', height: '24px' }}
+              />
+            </IconButton>
           </Tooltip>
           <IconButton><SearchIcon /></IconButton>
           <IconButton><MoreVertIcon /></IconButton>
@@ -62,45 +69,65 @@ export const ChatWindow = ({
       {/* Messages */}
       <Box sx={{ flex: 1, p: 2, overflowY: 'auto', bgcolor: '#8caebf', backgroundSize: 'cover' }}>
         {messages.map((msg, index) => {
-          const isHighlighted = highlightedMessageId === msg.timestamp;
-          const msgId = `msg-${msg.timestamp}`;
+          const isHighlighted = highlightedMessageId === msg.messageId;
+          const msgId = `${msg.messageId}`;
+
           return (
             <Box
               key={index}
-              id={msgId}
               sx={{
-                alignSelf: msg.isMine ? 'flex-end' : 'flex-start',
                 display: 'flex',
-                justifyContent: msg.isMine ? 'flex-end' : 'flex-start',
-                mb: 1,
-                transform: isHighlighted ? 'scale(1.02)' : 'scale(1)',
-                transition: 'transform 0.3s ease-in-out',
+                flexDirection: 'column',
+                alignItems: msg.isMine ? 'flex-end' : 'flex-start', // Align wrapper based on sender
+                mb: msg.ankiReview ? 0 : 1 // Reduce margin if a note follows
               }}
             >
-              <Paper
-                elevation={isHighlighted ? 6 : 1}
+              {/* 1. The Main Chat Bubble */}
+              <Box
+                id={msgId}
                 sx={{
-                  p: 1.5,
-                  maxWidth: '70%',
-                  borderRadius: 3,
-                  borderBottomRightRadius: msg.isMine ? 0 : 3,
-                  borderBottomLeftRadius: msg.isMine ? 3 : 0,
-                  bgcolor: isHighlighted ? '#fff9c4' : (msg.isMine ? '#effdde' : '#ffffff'),
-                  transition: 'background-color 0.5s ease',
+                  display: 'flex',
+                  justifyContent: msg.isMine ? 'flex-end' : 'flex-start',
+                  width: '100%', // Take full width of wrapper to allow alignment
+                  transform: isHighlighted ? 'scale(1.02)' : 'scale(1)',
+                  transition: 'transform 0.3s ease-in-out',
                 }}
               >
-                {conversation.type === 'group' && !msg.isMine && (
-                  <Typography variant="caption" sx={{ color: stringToColor(msg.from), fontWeight: 'bold', display: 'block' }}>
-                    {msg.from}
+                <Paper
+                  elevation={isHighlighted ? 6 : 1}
+                  sx={{
+                    p: 1.5,
+                    maxWidth: '70%',
+                    borderRadius: 3,
+                    borderBottomRightRadius: msg.isMine ? 0 : 3,
+                    borderBottomLeftRadius: msg.isMine ? 3 : 0,
+                    bgcolor: isHighlighted ? '#fff9c4' : (msg.isMine ? '#effdde' : '#ffffff'),
+                    transition: 'background-color 0.5s ease',
+                    position: 'relative',
+                    zIndex: 2 // Keep bubble on top of note visually
+                  }}
+                >
+                  {conversation.type === 'group' && !msg.isMine && (
+                    <Typography variant="caption" sx={{ color: stringToColor(msg.from), fontWeight: 'bold', display: 'block' }}>
+                      {msg.from}
+                    </Typography>
+                  )}
+                  <Typography variant="body1" sx={{ wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
+                    <Linkify options={{ target: '_blank', className: 'chat-link' }}>{msg.content}</Linkify>
                   </Typography>
-                )}
-                <Typography variant="body1" sx={{ wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
-                  <Linkify options={{ target: '_blank', className: 'chat-link' }}>{msg.content}</Linkify>
-                </Typography>
-                <Typography variant="caption" sx={{ display: 'block', textAlign: 'right', mt: 0.5, color: msg.isMine ? '#5dbb5e' : 'text.secondary', fontSize: '0.7rem' }}>
-                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </Typography>
-              </Paper>
+                  <Typography variant="caption" sx={{ display: 'block', textAlign: 'right', mt: 0.5, color: msg.isMine ? '#5dbb5e' : 'text.secondary', fontSize: '0.7rem' }}>
+                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Typography>
+                </Paper>
+              </Box>
+
+              {/* 2. The Anki Review Note (Conditional Render) */}
+              {msg.ankiReview && (
+                <AnkiReviewNote
+                  review={msg.ankiReview}
+                  isMine={msg.isMine}
+                />
+              )}
             </Box>
           );
         })}

@@ -7,6 +7,8 @@ import { ChatWindow } from './ChatWindow';
 import { SemanticSearchModal } from './modals/SemanticSearchModal';
 import { NewChatModal } from './modals/NewChatModal';
 import { AnkiSidebar} from "../ankiNotes/AnkiSidebar.tsx";
+import {useWebSocket} from "../../services/WebSocketContext.tsx";
+
 
 
 const ChatsPage = () => {
@@ -23,6 +25,19 @@ const ChatsPage = () => {
   const [isSemanticOpen, setIsSemanticOpen] = useState(false);
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [isAnkiOpen, setIsAnkiOpen] = useState(false);
+
+
+  const {subscribe} = useWebSocket();
+  const [lastAnkiEvent, setLastAnkiEvent] = useState(null);
+
+    useEffect(() => {
+      // Subscribe to the same event as the ChatWindow
+      const unsubscribe = subscribe("learning_update", (data) => {
+        // Wrap it in an object with a type so the Sidebar knows what to do
+        setLastAnkiEvent({ type: "learning_update", ...data });
+      });
+      return () => unsubscribe();
+    }, [subscribe]);
 
   // 3. Derive current conversation
   const currentConv = conversations.find(c => c.id === activeConversationId);
@@ -98,6 +113,7 @@ const ChatsPage = () => {
       {/* Right Sidebar (Anki) */}
       <AnkiSidebar
         open={isAnkiOpen}
+        lastAnkiEvent={lastAnkiEvent}
         onClose={() => setIsAnkiOpen(false)}
         currentUser={currentUser || ""}
       />
@@ -107,9 +123,9 @@ const ChatsPage = () => {
         open={isSemanticOpen}
         onClose={() => setIsSemanticOpen(false)}
         activeConversationId={activeConversationId}
-        onJumpToMessage={(t) => {
+        onJumpToMessage={(messageId) => {
            setIsSemanticOpen(false);
-           handleJumpToMessage(t);
+           handleJumpToMessage(messageId);
         }}
       />
 

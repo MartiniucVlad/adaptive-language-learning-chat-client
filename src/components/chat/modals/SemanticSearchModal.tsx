@@ -148,8 +148,7 @@ export const SemanticSearchModal = ({ open, onClose, activeConversationId, onJum
             <Fade in={true} timeout={300 + (idx * 50)} key={idx}>
               <ListItemButton
                 onClick={() => {
-                  console.log("Jumping to message with timestamp:", result.timestamp); // Your log
-                  onJumpToMessage(result.timestamp); // Your original function
+                  onJumpToMessage(result.messageId); // Your original function
                 }}
                 alignItems="flex-start"
                 sx={{

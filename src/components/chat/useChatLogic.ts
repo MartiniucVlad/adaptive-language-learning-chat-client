@@ -27,6 +27,7 @@
     const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
     const activeConversationIdRef = useRef<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const orphanedReviewsRef = useRef<Record<string, any>>({});
   
     // Keep ref in sync for Websocket
     useEffect(() => {
@@ -58,52 +59,103 @@
   
     useEffect(() => {
   // Subscribe specifically to chat messages
-  const unsubscribe = subscribe("chat_message", (data) => {
+    const unsubscribe = subscribe("chat_message", (data) => {
 
-    setConversations((prevConv) => {
-      const existingIndex = prevConv.findIndex(c => c.id === data.conversation_id);
+      setConversations((prevConv) => {
+        const existingIndex = prevConv.findIndex(c => c.id === data.conversation_id);
 
-      if (existingIndex > -1) {
-        const updatedConv = {
-          ...prevConv[existingIndex],
-          // Ensure we handle potentially missing fields if backend structure varies
-          last_message_preview: data.content.length <= 30 ? data.content : data.content.slice(0, 30) + "...",
-          last_message_at: data.timestamp,
-          unread_count: (data.conversation_id !== activeConversationIdRef.current) && data.from !== currentUser
-            ? (prevConv[existingIndex].unread_count || 0) + 1
-            : prevConv[existingIndex].unread_count || 0
-        };
-        const others = prevConv.filter(c => c.id !== data.conversation_id);
-        return [updatedConv, ...others];
-      } else {
-        fetchConversations();
-        return prevConv;
+        if (existingIndex > -1) {
+          const updatedConv = {
+            ...prevConv[existingIndex],
+            // Ensure we handle potentially missing fields if backend structure varies
+            last_message_preview: data.content.length <= 30 ? data.content : data.content.slice(0, 30) + "...",
+            last_message_at: data.timestamp,
+            unread_count: (data.conversation_id !== activeConversationIdRef.current) && data.from !== currentUser
+              ? (prevConv[existingIndex].unread_count || 0) + 1
+              : prevConv[existingIndex].unread_count || 0
+          };
+          const others = prevConv.filter(c => c.id !== data.conversation_id);
+          return [updatedConv, ...others];
+        } else {
+          fetchConversations();
+          return prevConv;
+        }
+      });
+
+      if (data.conversation_id === activeConversationIdRef.current) {
+        const pendingReview = orphanedReviewsRef.current[data.message_id];
+        setMessages((prev) => [
+          ...prev,
+          {
+            messageId: data.message_id,
+            from: data.from,
+            content: data.content,
+            timestamp: data.timestamp,
+            isMine: data.from === currentUser,
+            ankiReview: pendingReview ? {
+                tickedNotes: pendingReview.ticked_notes,
+                messageReview: pendingReview.message_review,
+                deckName: pendingReview.deck_name,
+                learner: pendingReview.learner
+            } : undefined
+          }
+        ]);
+
+        if (pendingReview) {
+            delete orphanedReviewsRef.current[data.message_id];
+          }
+
+        if (data.from !== currentUser) {
+            markConversationAsRead(data.conversation_id);
+        }
       }
     });
-
-    if (data.conversation_id === activeConversationIdRef.current) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          from: data.from,
-          content: data.content,
-          timestamp: data.timestamp,
-          isMine: data.from === currentUser
-        }
-      ]);
-
-      if (data.from !== currentUser) {
-          markConversationAsRead(data.conversation_id);
-      }
-    }
-  });
 
   // Cleanup: Unsubscribe when this hook unmounts
   return () => {
     unsubscribe();
   };
 }, [subscribe, currentUser]); // Dependencies: subscribe is stable, currentUser might change
-  
+
+
+  useEffect(() => {
+    const unsubscribe = subscribe("learning_update", (data: any) => {
+      setMessages((prevMessages) => {
+        // A. Try to find the message
+        const messageExists = prevMessages.some(m => m.messageId === data.message_id);
+        console.log("were here")
+        console.log(messageExists);
+        if (messageExists) {
+           // Standard Case: Message is there, update it.
+           return prevMessages.map((msg) => {
+            if (msg.messageId === data.message_id) {
+              return {
+                ...msg,
+                ankiReview: {
+                  tickedNotes: data.ticked_notes,
+                  messageReview: data.message_review,
+                  deckName: data.deck_name,
+                  learner: data.learner
+                }
+              };
+            }
+            return msg;
+          });
+        } else {
+          // B. ORPHAN CASE: Message hasn't arrived yet.
+          // Store it in the buffer so the chat_message listener can find it later.
+          console.log(`buffered review for missing message: ${data.message_id}`);
+          orphanedReviewsRef.current[data.message_id] = data;
+          return prevMessages; // No UI change yet
+        }
+      });
+    });
+
+    return () => unsubscribe();
+  }, [subscribe]);
+
+
+
     // Scroll to bottom on new message
     useEffect(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -115,6 +167,7 @@
         const response = await api.get(`/chat/history/${convId}`);
         setMessages(response.data.map((msg: any) => ({
           from: msg.sender,
+          messageId: msg.message_id,
           content: msg.content,
           timestamp: msg.timestamp,
           isMine: msg.sender === currentUser
@@ -146,15 +199,14 @@
       });
 };
 
-  const handleJumpToMessage = (timestamp: string) => {
-    const normalizedSearchTs = timestamp.substring(0, 23);
-    const elementId = `msg-${normalizedSearchTs}`;
+  const handleJumpToMessage = (messageId: string) => {
+    const elementId = messageId
     console.log(elementId);
     const element = document.getElementById(elementId);
     console.log(element);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setHighlightedMessageId(normalizedSearchTs);
+      setHighlightedMessageId(messageId);
       setTimeout(() => setHighlightedMessageId(null), 2000);
     } else {
       alert("Message not found in loaded history.");

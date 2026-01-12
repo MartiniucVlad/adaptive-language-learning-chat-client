@@ -3,7 +3,7 @@ import { Box, Stack, TextField, IconButton } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import InsertEmoticonIcon from '@mui/icons-material/InsertEmoticon';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
-import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
+import EmojiPicker, {type EmojiClickData } from 'emoji-picker-react';
 
 interface MessageInputProps {
   onSend: (text: string) => void;

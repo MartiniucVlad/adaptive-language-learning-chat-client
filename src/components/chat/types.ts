@@ -1,9 +1,4 @@
-export interface Message {
-  from: string;
-  content: string;
-  timestamp: string;
-  isMine: boolean;
-}
+
 
 export interface ConversationSummary {
   id: string;
@@ -17,8 +12,25 @@ export interface ConversationSummary {
 }
 
 export interface SemanticResult {
+  messageId: string;
   content: string;
   sender: string;
   timestamp: string;
   score: number;
+}
+
+export interface AnkiReview {
+  tickedNotes: Array<{ id: string; word: string }>;
+  messageReview: string;
+  deckName: string;
+  learner: string;
+}
+
+export interface Message {
+  messageId: string;
+  from: string;
+  content: string;
+  timestamp: string;
+  isMine: boolean;
+  ankiReview?: AnkiReview;
 }
