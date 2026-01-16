@@ -32,29 +32,47 @@ export const ChatSidebar = ({ conversations, activeId, currentUser, onSelect, on
       {/* Header */}
       <Box sx={{ p: 2, bgcolor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Stack direction="row" spacing={1} alignItems="center">
-          <Tooltip title="New Chat">
-            <IconButton
-              onClick={onNewChat}
-              sx={{
-                p: 0,
-                width: 72,
-                height: 72,
-                '&:hover': { bgcolor: '#f5f5f5' }
-              }}
-            >
-              <Box
-                component="img"
-                src={newChatIcon}
-                alt="New Chat"
-                sx={{
-                  // CHANGE THESE VALUES:
-                  width: 54,  // increased from 24
-                  height: 54, // increased from 24
-                  objectFit: 'contain'
-                }}
-              />
-            </IconButton>
-          </Tooltip>
+        <Tooltip title="New Chat">
+  <IconButton
+    onClick={onNewChat}
+    sx={{
+      // 1. Define the circle size
+      width: 50,
+      height: 50,
+
+      // 2. CRITICAL: Remove default button padding so image touches edges
+      p: 0,
+
+      // 3. Clip the square image into a circle
+      overflow: 'hidden',
+
+      // 4. Optional: Interaction styles
+      boxShadow: 3,
+      transition: 'all 0.2s ease-in-out',
+      '&:hover': {
+        transform: 'scale(1.1)',
+        boxShadow: 6
+      }
+    }}
+  >
+    <Box
+      component="img"
+      src={newChatIcon}
+      alt="New Chat"
+      sx={{
+        // 5. Force image to fill the container completely
+        width: '100%',
+        height: '100%',
+
+        // 6. This does the magic:
+        // It zooms the image until it covers every pixel of the circle.
+        // If the image is square, it fits perfectly.
+        // If it's rectangular, it crops the excess.
+        objectFit: 'cover',
+      }}
+    />
+  </IconButton>
+</Tooltip>
   <Typography variant="h6" fontWeight="bold" color="text.primary">Chats</Typography>
 </Stack>
         <IconButton onClick={onLogout} color="error" size="small">

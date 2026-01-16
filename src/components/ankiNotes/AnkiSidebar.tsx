@@ -16,18 +16,37 @@ import {
   CircularProgress,
   LinearProgress,
   Paper,
-  Chip
+  Chip,
+  Menu,
+  Tooltip
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
+import EditIcon from '@mui/icons-material/Edit';
 
 import { getDeckNames, getActiveDeckNotes } from './AnkiService';
 import api from '../../services/axiosClient';
 import { useAnki } from "./AnkiContext.tsx";
 
-const DRAWER_WIDTH = 340; // Slightly wider for better breathing room
+const DRAWER_WIDTH = 340;
+
+// Language Mapping for User Friendly Display
+const LANG_MAP: { [key: string]: string } = {
+  en: "English",
+  de: "German",
+  fr: "French",
+  es: "Spanish",
+  it: "Italian",
+  nl: "Dutch",
+  pt: "Portuguese",
+  ro: "Romanian",
+  ru: "Russian",
+  ja: "Japanese",
+  zh: "Chinese",
+  xx: "Multilingual/Other"
+};
 
 interface AnkiNote {
   id: string;
@@ -44,6 +63,50 @@ interface AnkiSidebarProps {
   lastAnkiEvent?: any;
 }
 
+// --- HELPER FUNCTIONS FOR COMPATIBILITY ---
+
+// 1. Clean HTML tags and excessive whitespace
+const cleanText = (html: string) => {
+  if (!html) return "";
+  return html
+    .replace(/<style([\s\S]*?)<\/style>/gi, '') // Remove style blocks
+    .replace(/<script([\s\S]*?)<\/script>/gi, '') // Remove script blocks
+    .replace(/<[^>]*>?/gm, '') // Remove tags
+    .replace(/&nbsp;/g, ' ')
+    .trim();
+};
+
+// 2. Smart Field Extractor
+// Scans for common field names or falls back to index position
+const getSmartField = (fields: any, type: 'front' | 'back') => {
+  const keys = Object.keys(fields);
+  if (keys.length === 0) return "Unknown";
+
+  // Priority lists for common naming conventions
+  const frontCandidates = ['Front', 'Word', 'Text', 'Question', 'Term', 'Expression', 'Kanji', 'Vocabulary', 'Romanian', 'Sentence'];
+  const backCandidates = ['Back', 'Answer', 'Definition', 'Meaning', 'Translation', 'Reading', 'English', 'Notes'];
+
+  const candidates = type === 'front' ? frontCandidates : backCandidates;
+
+  // A. Try exact matches from our list
+  for (const candidate of candidates) {
+    // Case-insensitive check
+    const match = keys.find(k => k.toLowerCase() === candidate.toLowerCase());
+    if (match && fields[match].value) {
+      return cleanText(fields[match].value);
+    }
+  }
+
+  // B. Fallback: Use Index (0 for front, 1 for back)
+  // If we want 'back' but only have 1 field, return empty string
+  if (type === 'back' && keys.length < 2) return "";
+
+  const fallbackIndex = type === 'front' ? 0 : 1;
+  return cleanText(fields[keys[fallbackIndex]].value);
+};
+
+// ------------------------------------------
+
 export const AnkiSidebar: React.FC<AnkiSidebarProps> = ({
   open,
   onClose,
@@ -54,6 +117,10 @@ export const AnkiSidebar: React.FC<AnkiSidebarProps> = ({
   const [decks, setDecks] = useState<string[]>([]);
   const [notes, setNotes] = useState<AnkiNote[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // --- NEW: Language State ---
+  const [deckLang, setDeckLang] = useState<string>("en");
+  const [langMenuAnchor, setLangMenuAnchor] = useState<null | HTMLElement>(null);
 
   // Statistics Calculation
   const stats = useMemo(() => {
@@ -68,39 +135,33 @@ export const AnkiSidebar: React.FC<AnkiSidebarProps> = ({
     if (open) loadDecks();
   }, [open]);
 
-  // 2. REAL-TIME UPDATES (BUG FIXED HERE)
+  // 2. REAL-TIME UPDATES
   useEffect(() => {
     if (!lastAnkiEvent) return;
 
     if (lastAnkiEvent.type === 'anki_sync_state') {
       if (lastAnkiEvent.deck_name === selectedDeck) {
         setNotes(lastAnkiEvent.notes);
+        // Sync language if provided in event
+        if (lastAnkiEvent.language) setDeckLang(lastAnkiEvent.language);
       }
     }
 
     if (lastAnkiEvent.type === 'learning_update') {
       if (lastAnkiEvent.deck_name && lastAnkiEvent.deck_name !== selectedDeck) return;
 
-      // FIX: The event sends an array of objects: [{id: "...", word: "..."}]
       const tickedTargets = lastAnkiEvent.ticked_notes || [];
 
       setNotes((prevNotes) =>
         prevNotes.map((note) => {
-          // Check if this note matches ANY item in the tickedTargets array
           const isMatch = tickedTargets.some((target: any) => {
-             // 1. Check ID Match
              const idMatches = String(target.id) === String(note.id);
-
-             // 2. Check Word Match (Trim strings to handle "über " vs "über")
              const wordMatches = target.word && note.front &&
                                  target.word.trim() === note.front.trim();
-
              return idMatches || wordMatches;
           });
 
-          if (isMatch) {
-            return { ...note, is_reviewed: true };
-          }
+          if (isMatch) return { ...note, is_reviewed: true };
           return note;
         })
       );
@@ -118,6 +179,7 @@ export const AnkiSidebar: React.FC<AnkiSidebarProps> = ({
 
     if (!deckName) {
       setNotes([]);
+      setDeckLang("en");
       return;
     }
 
@@ -125,13 +187,16 @@ export const AnkiSidebar: React.FC<AnkiSidebarProps> = ({
     try {
       const ankiRawNotes = await getActiveDeckNotes(deckName);
 
+      // --- UPDATED MAPPING LOGIC START ---
       const formattedNotes = ankiRawNotes.map((n: any) => ({
         id: String(n.noteId),
-        front: n.fields['Front']?.value.replace(/<[^>]*>?/gm, '') || "Unknown",
-        back: n.fields['Back']?.value.replace(/<[^>]*>?/gm, '') || "",
+        // Use the smart extractor instead of hardcoding ['Front']
+        front: getSmartField(n.fields, 'front'),
+        back: getSmartField(n.fields, 'back'),
         mod: n.mod,
         is_reviewed: false
       }));
+      // --- UPDATED MAPPING LOGIC END ---
 
       const response = await api.post('/anki/active-deck-persistence', {
         deck_name: deckName,
@@ -139,10 +204,38 @@ export const AnkiSidebar: React.FC<AnkiSidebarProps> = ({
       });
 
       setNotes(response.data.notes);
+
+      // --- UPDATE: Set detected language from backend ---
+      if (response.data.language) {
+        setDeckLang(response.data.language);
+      }
     } catch (error) {
       console.error("Error syncing deck:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // --- NEW: Language Menu Handlers ---
+  const handleLangMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setLangMenuAnchor(event.currentTarget);
+  };
+
+  const handleLangMenuClose = () => {
+    setLangMenuAnchor(null);
+  };
+
+  const handleLangSelect = async (code: string) => {
+    setDeckLang(code);
+    handleLangMenuClose();
+
+    try {
+        await api.post('/anki/update-deck-language', {
+            deck_name: selectedDeck,
+            language: code
+        });
+    } catch (err) {
+        console.error("Failed to update language preference", err);
     }
   };
 
@@ -159,7 +252,7 @@ export const AnkiSidebar: React.FC<AnkiSidebarProps> = ({
           boxSizing: 'border-box',
           top: 64,
           height: 'calc(100% - 64px)',
-          bgcolor: '#f8f9fa' // Light grey background for professional feel
+          bgcolor: '#f8f9fa'
         },
       }}
     >
@@ -188,6 +281,53 @@ export const AnkiSidebar: React.FC<AnkiSidebarProps> = ({
             ))}
           </Select>
         </FormControl>
+
+        {/* --- NEW: Language Detection & Override UI --- */}
+        {selectedDeck && !loading && (
+            <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                <Box sx={{ m:1,display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary">
+                        Detected Language:
+                    </Typography>
+                </Box>
+
+                <Tooltip title="Click to manually change deck language">
+                    <Chip
+                        label={LANG_MAP[deckLang] || deckLang.toUpperCase()}
+                        size="small"
+                        onClick={handleLangMenuOpen}
+                        icon={<EditIcon style={{ fontSize: 14 }} />}
+                        sx={{
+                            fontSize: '0.75rem',
+                            cursor: 'pointer',
+                            bgcolor: '#f0f4ff',
+                            color: '#1976d2',
+                            fontWeight: 'bold',
+                            border: '1px solid #d1e3ff',
+                            '&:hover': { bgcolor: '#d1e3ff' }
+                        }}
+                    />
+                </Tooltip>
+
+                <Menu
+                    anchorEl={langMenuAnchor}
+                    open={Boolean(langMenuAnchor)}
+                    onClose={handleLangMenuClose}
+                >
+                    {Object.entries(LANG_MAP).map(([code, name]) => (
+                        <MenuItem
+                            key={code}
+                            selected={code === deckLang}
+                            onClick={() => handleLangSelect(code)}
+                            dense
+                        >
+                            {name}
+                        </MenuItem>
+                    ))}
+                </Menu>
+            </Box>
+        )}
+        {/* ------------------------------------------- */}
 
         {/* Progress Bar Statistics */}
         {selectedDeck && !loading && (

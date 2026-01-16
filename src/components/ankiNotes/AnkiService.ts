@@ -40,15 +40,32 @@ export const getDeckNames = async () => {
 
 // 2. Get Due + Rated cards for a specific deck
 // We fetch IDs first, then details (notesInfo)
-export const getActiveDeckNotes = async (deckName: string) => {
-  // Query: Cards in this deck that are either Due OR Rated today (reviewed)
-  const query = `("deck:${deckName}" (is:due OR rated:1))`;
-  
-  const noteIds = await invoke('findNotes', { query });
-  
-  if (!noteIds || noteIds.length === 0) return [];
+// src/services/ankiService.ts
 
-  // Get content for these notes
-  const notesInfo = await invoke('notesInfo', { notes: noteIds });
-  return notesInfo;
+export const getActiveDeckNotes = async (deckName: string) => {
+  console.log(`[Frontend] Fetching cards for deck: ${deckName}`);
+
+  // Query all cards in the deck
+  const query = `"deck:${deckName}"`;
+
+  try {
+    const noteIds = await invoke('findNotes', { query });
+
+    console.log(`[Frontend] AnkiConnect found ${noteIds?.length || 0} IDs`);
+
+    if (!noteIds || noteIds.length === 0) return [];
+
+    // --- APPLY LIMIT HERE ---
+    // Take only the first 60 IDs to send to the backend
+    const limitedNoteIds = noteIds.slice(0, 60);
+    console.log(`[Frontend] Limiting to first ${limitedNoteIds.length} cards`);
+
+    // Get content for these specific notes
+    const notesInfo = await invoke('notesInfo', { notes: limitedNoteIds });
+
+    return notesInfo;
+  } catch (err) {
+    console.error("Error in getActiveDeckNotes", err);
+    return [];
+  }
 };
