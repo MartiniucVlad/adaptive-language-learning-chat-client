@@ -256,6 +256,27 @@ const loadChatHistory = async (convId: string) => {
     }
   };
 
+
+  const deleteConversation = async (conversationId: string) => {
+    try {
+      // 1. Call Backend
+      await api.delete(`/chat/conversations/${conversationId}`);
+
+      // 2. Optimistic Update (Remove from UI immediately)
+      setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+
+      // 3. If we were looking at that chat, close the window
+      if (activeConversationId === conversationId) {
+        setActiveConversationId(null);
+      }
+      return true;
+    } catch (error) {
+      console.error("Failed to delete conversation", error);
+      alert("Failed to delete conversation"); // Simple feedback
+      return false;
+    }
+  };
+
   const startDM = async (friendUsername: string) => {
     try {
       const res = await api.post("chat/conversations/initiate", {
@@ -286,6 +307,7 @@ const loadChatHistory = async (convId: string) => {
     fetchFriendsForNewChat,
     fetchFriendsForGroup,
     createGroup,
+    deleteConversation,
     startDM,
     handleLogout: () => { logout(); navigate('/login'); }
   };

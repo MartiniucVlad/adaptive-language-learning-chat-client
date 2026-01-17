@@ -28,44 +28,37 @@ export const invoke = async (action: string, params: any = {}) => {
 
     return result.result;
   } catch (error) {
+    // STOP SILENCING ERRORS
+    // We log it for debugging, but we throw it so the UI knows it failed.
     console.error(`AnkiConnect Error (${action}):`, error);
-    return null;
+    throw error;
   }
 };
 
 // 1. Get list of all deck names
 export const getDeckNames = async () => {
-  return await invoke('deckNames') || [];
+  // If invoke throws, this will throw automatically to the caller
+  return await invoke('deckNames');
 };
 
 // 2. Get Due + Rated cards for a specific deck
-// We fetch IDs first, then details (notesInfo)
-// src/services/ankiService.ts
-
 export const getActiveDeckNotes = async (deckName: string) => {
   console.log(`[Frontend] Fetching cards for deck: ${deckName}`);
 
-  // Query all cards in the deck
   const query = `"deck:${deckName}"`;
 
-  try {
-    const noteIds = await invoke('findNotes', { query });
+  // We let invoke() handle the throwing if network fails
+  const noteIds = await invoke('findNotes', { query });
 
-    console.log(`[Frontend] AnkiConnect found ${noteIds?.length || 0} IDs`);
+  console.log(`[Frontend] AnkiConnect found ${noteIds?.length || 0} IDs`);
 
-    if (!noteIds || noteIds.length === 0) return [];
+  if (!noteIds || noteIds.length === 0) return [];
 
-    // --- APPLY LIMIT HERE ---
-    // Take only the first 60 IDs to send to the backend
-    const limitedNoteIds = noteIds.slice(0, 60);
-    console.log(`[Frontend] Limiting to first ${limitedNoteIds.length} cards`);
+  // --- APPLY LIMIT HERE ---
+  const limitedNoteIds = noteIds.slice(0, 60);
 
-    // Get content for these specific notes
-    const notesInfo = await invoke('notesInfo', { notes: limitedNoteIds });
+  // This will also throw if network fails mid-operation
+  const notesInfo = await invoke('notesInfo', { notes: limitedNoteIds });
 
-    return notesInfo;
-  } catch (err) {
-    console.error("Error in getActiveDeckNotes", err);
-    return [];
-  }
+  return notesInfo;
 };

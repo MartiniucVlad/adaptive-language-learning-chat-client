@@ -1,6 +1,5 @@
-// components/AnkiReviewNote.tsx
 import React, { useState } from 'react';
-import { Box, Typography, Collapse, Chip, alpha } from '@mui/material';
+import { Box, Typography, Collapse, Chip, alpha, useTheme } from '@mui/material';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -14,24 +13,22 @@ interface Props {
 
 export const AnkiReviewNote = ({ review, isMine }: Props) => {
   const [isOpen, setIsOpen] = useState(false);
+  const theme = useTheme(); // Access theme for dynamic coloring
   const hasMatches = review.tickedNotes.length > 0;
 
-  const colors = {
-    success: {
-      main: '#fbc02d',
-      light: '#fffde7',
-      text: '#5d4037',
-      hover: '#fff9c4'    // New Solid Hover Color (Yellow)
-    },
-    fail: {
-      main: '#ef5350',
-      light: '#ffebee',
-      text: '#c62828',
-      hover: '#ffcdd2'    // New Solid Hover Color (Red)
-    }
-  };
+  // Define colors dynamically based on the theme palette
+  // We use alpha() so it works on both Light and Dark modes automatically
+  const baseColor = hasMatches ? theme.palette.success.main : theme.palette.error.main;
 
-  const activeColor = hasMatches ? colors.success : colors.fail;
+  // Custom styles for the status container
+  const containerStyle = {
+      bgcolor: alpha(baseColor, theme.palette.mode === 'light' ? 0.1 : 0.15),
+      borderColor: alpha(baseColor, 0.5),
+      hoverBg: alpha(baseColor, theme.palette.mode === 'light' ? 0.2 : 0.25),
+      textColor: theme.palette.mode === 'light'
+        ? (hasMatches ? '#5d4037' : '#c62828') // Keep your original high contrast text for light mode
+        : (hasMatches ? theme.palette.success.light : theme.palette.error.light) // Lighter text for dark mode
+  };
 
   return (
     <Box
@@ -45,7 +42,6 @@ export const AnkiReviewNote = ({ review, isMine }: Props) => {
         zIndex: 1,
       }}
     >
-      {/* --- MODIFY THIS BOX (The Main Container) --- */}
       <Box
         onClick={() => setIsOpen(!isOpen)}
         sx={{
@@ -53,8 +49,9 @@ export const AnkiReviewNote = ({ review, isMine }: Props) => {
           flexDirection: 'column',
           alignItems: 'flex-start',
 
-          bgcolor: activeColor.light,
-          border: `1px solid ${activeColor.main}`,
+          bgcolor: containerStyle.bgcolor,
+          border: '1px solid',
+          borderColor: containerStyle.borderColor,
 
           borderRadius: 2,
           borderTopLeftRadius: isMine ? 2 : 0,
@@ -66,11 +63,9 @@ export const AnkiReviewNote = ({ review, isMine }: Props) => {
           cursor: 'pointer',
           transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
 
-          // --- THE FIX IS HERE ---
           '&:hover': {
-            // We use the SOLID hover color defined above, NOT alpha()
-            bgcolor: activeColor.hover,
-            boxShadow: `0 2px 8px ${alpha(activeColor.main, 0.25)}`
+            bgcolor: containerStyle.hoverBg,
+            boxShadow: `0 2px 8px ${alpha(baseColor, 0.25)}`
           }
         }}
       >
@@ -86,15 +81,15 @@ export const AnkiReviewNote = ({ review, isMine }: Props) => {
           }}
         >
           {hasMatches ? (
-            <CheckCircleOutlineIcon sx={{ fontSize: 16, color: activeColor.main }} />
+            <CheckCircleOutlineIcon sx={{ fontSize: 16, color: baseColor }} />
           ) : (
-            <ErrorOutlineIcon sx={{ fontSize: 16, color: activeColor.main }} />
+            <ErrorOutlineIcon sx={{ fontSize: 16, color: baseColor }} />
           )}
 
           <Typography
             variant="caption"
             sx={{
-              color: activeColor.text,
+              color: containerStyle.textColor,
               fontWeight: 700,
               userSelect: 'none',
               lineHeight: 1
@@ -106,9 +101,9 @@ export const AnkiReviewNote = ({ review, isMine }: Props) => {
           <Box sx={{ flexGrow: 1 }} />
 
           {isOpen ? (
-            <KeyboardArrowUpIcon sx={{ fontSize: 16, color: activeColor.text, opacity: 0.6 }} />
+            <KeyboardArrowUpIcon sx={{ fontSize: 16, color: containerStyle.textColor, opacity: 0.6 }} />
           ) : (
-            <KeyboardArrowDownIcon sx={{ fontSize: 16, color: activeColor.text, opacity: 0.6 }} />
+            <KeyboardArrowDownIcon sx={{ fontSize: 16, color: containerStyle.textColor, opacity: 0.6 }} />
           )}
         </Box>
 
@@ -117,7 +112,8 @@ export const AnkiReviewNote = ({ review, isMine }: Props) => {
           <Box
             sx={{
               padding: '0 10px 10px 10px',
-              borderTop: `1px dashed ${alpha(activeColor.main, 0.3)}`,
+              borderTop: '1px dashed',
+              borderColor: alpha(baseColor, 0.3),
               marginTop: '2px',
               paddingTop: '8px'
             }}
@@ -125,7 +121,7 @@ export const AnkiReviewNote = ({ review, isMine }: Props) => {
             <Typography
               variant="body2"
               sx={{
-                color: activeColor.text,
+                color: 'text.primary', // Use theme text color
                 fontSize: '0.8rem',
                 fontStyle: 'italic',
                 marginBottom: 1.5,
@@ -145,8 +141,8 @@ export const AnkiReviewNote = ({ review, isMine }: Props) => {
                     sx={{
                       height: 20,
                       fontSize: '0.7rem',
-                      backgroundColor: activeColor.main,
-                      color: '#fff',
+                      backgroundColor: baseColor,
+                      color: theme.palette.getContrastText(baseColor), // Dynamic text color (black/white)
                       fontWeight: 600,
                       '& .MuiChip-label': { padding: '0 8px' }
                     }}
