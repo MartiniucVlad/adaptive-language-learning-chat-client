@@ -33,14 +33,15 @@ export const ChatSidebar = ({conversations, activeId, currentUser, onSelect, onN
         <Paper
             elevation={0} // Flat design
             sx={{
-                width: 320,
                 display: 'flex',
                 flexDirection: 'column',
                 borderRight: 1,
                 borderColor: 'divider',
                 bgcolor: 'background.paper',
                 zIndex: 2,
-                borderRadius: 0
+                borderRadius: 0,
+                width: '100%',
+                height: '100%',
             }}
         >
             {/* Header */}
@@ -72,7 +73,7 @@ export const ChatSidebar = ({conversations, activeId, currentUser, onSelect, onN
             </Box>
 
             {/* Search */}
-            <Box sx={{px: 2, pb: 2}}>
+            <Box sx={{px: 2, pb: 2, maxWidth:300}}>
                 <TextField
                     fullWidth
                     size="small"

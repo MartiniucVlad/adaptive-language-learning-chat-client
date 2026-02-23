@@ -1,4 +1,4 @@
-
+import type {StorySummary} from "./StoriesPage.tsx";
 
 export interface ConversationSummary {
   id: string;
@@ -33,6 +33,7 @@ export interface Message {
   timestamp: string;
   isMine: boolean;
   ankiReview?: AnkiReview;
+  attachedStory?: StorySummary;
 }
 
 

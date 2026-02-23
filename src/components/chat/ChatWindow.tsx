@@ -10,6 +10,11 @@ import MessageInput from './MessageInput';
 import {AnkiReviewNote} from '../ankiNotes/AnkiReviewNote.tsx';
 import {useState} from "react";
 import {ChatInfoDrawer} from "./modals/ChatInfoDrawer.tsx";
+import type {StorySummary} from "./StoriesPage.tsx";
+import {useDrag} from './DragContext';
+import CloseIcon from "@mui/icons-material/Close";
+import {alpha} from "@mui/material/styles";
+import MenuBookIcon from "@mui/icons-material/MenuBook";
 
 interface ChatWindowProps {
     activeId: string | null;
@@ -42,6 +47,9 @@ export const ChatWindow = ({
                            }: ChatWindowProps) => {
     const theme = useTheme(); // Access the full theme object
     const [isInfoOpen, setIsInfoOpen] = useState(false);
+    const {draggedStory, setDraggedStory} = useDrag();
+    const [attachedStory, setAttachedStory] = useState<StorySummary | null>(null);
+    const [isDragOver, setIsDragOver] = useState(false)
 
     // --- 1. Modern Empty State ---
     if (!activeId || !conversation) {
@@ -310,7 +318,69 @@ export const ChatWindow = ({
             </Box>
 
             {/* Input */}
-            <MessageInput onSend={onSendMessage}/>
+            <Box
+                onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'copy';
+                    setIsDragOver(true);
+                }}
+                onDragLeave={() => setIsDragOver(false)}
+                onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragOver(false);
+                    if (draggedStory) {
+                        setAttachedStory(draggedStory);
+                        setDraggedStory(null);
+                    }
+                }}
+                sx={{
+                    border: '1px solid',
+                    borderColor: isDragOver
+                        ? 'primary.main'
+                        : 'transparent',
+                    borderRadius: 2,
+                    transition: 'border-color 0.15s ease',
+                    bgcolor: isDragOver
+                        ? alpha(theme.palette.primary.main, 0.05)
+                        : 'transparent',
+                }}
+            >
+                {/* Attachment preview — shown above the text input when a story is attached */}
+                {attachedStory && (
+                    <Box sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        px: 2,
+                        py: 1,
+                        mx: 1,
+                        mb: 0.5,
+                        borderRadius: 1.5,
+                        bgcolor: alpha(theme.palette.primary.main, 0.08),
+                        border: '1px solid',
+                        borderColor: alpha(theme.palette.primary.main, 0.2),
+                    }}>
+                        <MenuBookIcon sx={{fontSize: 16, color: 'primary.main', flexShrink: 0}}/>
+                        <Box sx={{flex: 1, minWidth: 0}}>
+                            <Typography variant="caption" fontWeight={700} color="primary.main" noWrap>
+                                {attachedStory.title}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{display: 'block'}}>
+                                {attachedStory.difficulty_label} · {attachedStory.chunk_count} sections
+                            </Typography>
+                        </Box>
+                        <IconButton
+                            size="small"
+                            onClick={() => setAttachedStory(null)}
+                            sx={{color: 'text.secondary', flexShrink: 0}}
+                        >
+                            <CloseIcon sx={{fontSize: 14}}/>
+                        </IconButton>
+                    </Box>
+                )}
+                <MessageInput onSend={onSendMessage}/>
+            </Box>
+
             <ChatInfoDrawer
                 open={isInfoOpen}
                 onClose={() => setIsInfoOpen(false)}

@@ -45,7 +45,7 @@
   
     const fetchConversations = async () => {
       try {
-        const response = await api.get("chat/conversations/list");
+        const response = await api.get("/chat/conversations/list");
         setConversations(response.data);
       } catch (err) {
         console.error("Failed to fetch conversations", err);
@@ -207,6 +207,7 @@ const loadChatHistory = async (convId: string) => {
         conversation_id: activeConversationId,
         content: content.trim(),
         deck_name: selectedDeck || null // Map 'selectedDeck' to backend's 'deck_name'
+        attachedStory:
       });
 };
 
