@@ -1,4 +1,3 @@
-import type {StorySummary} from "./StoriesPage.tsx";
 
 export interface ConversationSummary {
   id: string;
@@ -26,6 +25,13 @@ export interface AnkiReview {
   deckName: string;
 }
 
+export interface StoryPreview {
+    id: string;
+    title: string;
+    difficulty_label: string;
+    chunk_count: number;
+}
+
 export interface Message {
   messageId: string;
   from: string;
@@ -33,7 +39,7 @@ export interface Message {
   timestamp: string;
   isMine: boolean;
   ankiReview?: AnkiReview;
-  attachedStory?: StorySummary;
+  attachedStory?: StoryPreview;
 }
 
 

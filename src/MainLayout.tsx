@@ -83,7 +83,7 @@ const MainLayout = () => {
                         }}
                         onClick={() => navigate('/chats')}
                     >
-                        anki-chat
+                        m-chat
                     </Typography>
 
                     <Stack direction="row" spacing={1.5} alignItems="center">

@@ -1,4 +1,4 @@
-import {useState, useEffect} from 'react';
+import {useState, useEffect, useRef} from 'react';
 import {Box, CssBaseline, IconButton, Tooltip} from '@mui/material';
 import {alpha} from '@mui/material/styles';
 import ForumIcon from '@mui/icons-material/Forum';
@@ -56,6 +56,8 @@ const ChatsPage = () => {
         conversations, activeConversationId, messages, currentUser,
         highlightedMessageId, messagesEndRef,
         friendsNoConv, allFriends,
+        attachedStory,
+        setAttachedStory,
         handleSelectConversation, handleSendMessage, handleJumpToMessage, handleLogout,
         fetchFriendsForNewChat, fetchFriendsForGroup, createGroup, deleteConversation, startDM
     } = useChatLogic();
@@ -68,9 +70,7 @@ const ChatsPage = () => {
     const {subscribe} = useWebSocket();
     const [lastAnkiEvent, setLastAnkiEvent] = useState(null);
 
-    // Retrieve the auth token for StoriesPage API calls.
-    // Adjust this to wherever your app stores the JWT.
-    const token = localStorage.getItem('access_token') ?? '';
+    const loadStoriesRef = useRef<() => void>(() => {});
 
     useEffect(() => {
         const unsubscribe = subscribe("learning_update", (data: any) => {
@@ -156,6 +156,7 @@ const ChatsPage = () => {
                                 {/* Stories sidebar — always mounted, visibility controlled by `visible` prop */}
                                 <StoriesPage
                                     visible={activeTab === 'stories'}
+                                    onLoadStoriesRef={(fn) => { loadStoriesRef.current = fn; }}
                                 />
                             </Box>
                         </Box>
@@ -187,6 +188,9 @@ const ChatsPage = () => {
                                 onToggleAnki={() => setIsAnkiOpen(!isAnkiOpen)}
                                 isAnkiOpen={isAnkiOpen}
                                 onDeleteConversation={deleteConversation}
+                                attachedStory={attachedStory}
+                                onAttachStory={setAttachedStory}
+                                onStoryAcquired={() => loadStoriesRef.current()}
                             />
                         </Box>
                     </Panel>

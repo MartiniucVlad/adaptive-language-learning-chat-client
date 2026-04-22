@@ -5,7 +5,8 @@ import {
     Drawer, LinearProgress, Stack, Divider, Fade,
     CircularProgress, useTheme, Button
 } from '@mui/material';
-import api from "../../services/axiosClient.ts";
+import api, {BASE_URL} from "../../services/axiosClient.ts";
+import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 
 import {alpha} from '@mui/material/styles';
 import SearchIcon from '@mui/icons-material/Search';
@@ -16,6 +17,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import SchoolIcon from '@mui/icons-material/School';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import TranslateIcon from '@mui/icons-material/Translate';
+import AutoStoriesIcon from '@mui/icons-material/AutoStories';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import {useDrag} from "./DragContext.tsx";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -41,6 +44,10 @@ interface VocabEntry {
     gender?: string;
     plurals: string[];
     definitions: string[];
+    form_word?: string;
+    form_definitions?: string[];
+    synonyms?: string[]
+
 }
 
 interface StoryChunk {
@@ -83,6 +90,10 @@ async function fetchChunk(storyId: string, chunkIndex: number): Promise<StoryChu
     return res.data;
 }
 
+async function deleteStory(storyId: string): Promise<void> {
+    await api.delete(`/stories/${storyId}`);
+}
+
 // async function fetchStoryMeta(storyId: string): Promise<any> {
 //     const res = await api.get("/stories/${storyId}");
 //     if (!res.data) throw new Error('Failed to load story');
@@ -112,6 +123,7 @@ const WordPopup = ({entry, anchor, onClose}: WordPopupProps) => {
     }, [onClose]);
 
     const genderLabel: Record<string, string> = {m: 'der', f: 'die', n: 'das'};
+    const hasFormInfo = entry.form_word && entry.form_definitions && entry.form_definitions.length > 0;
 
     return (
         <Fade in>
@@ -155,6 +167,44 @@ const WordPopup = ({entry, anchor, onClose}: WordPopupProps) => {
 
                 <Divider sx={{my: 1, borderColor: alpha('#fff', 0.08)}}/>
 
+                {/* Form-of block: e.g. gezogen → "past participle of ziehen" */}
+                {hasFormInfo && (
+                    <>
+                        <Box sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 0.25,
+                            mb: 1,
+                            px: 1,
+                            py: 0.75,
+                            borderRadius: 1,
+                            bgcolor: alpha(theme.palette.primary.main, 0.08),
+                            border: '1px solid',
+                            borderColor: alpha(theme.palette.primary.main, 0.15),
+                        }}>
+                            <Typography
+                                variant="caption"
+                                fontWeight={700}
+                                color="primary.main"
+                                sx={{fontSize: '0.7rem', letterSpacing: 0.6, textTransform: 'uppercase'}}
+                            >
+                                {entry.form_word}
+                            </Typography>
+                            {entry.form_definitions!.map((def, i) => (
+                                <Typography
+                                    key={i}
+                                    variant="body2"
+                                    color="text.secondary"
+                                    sx={{fontSize: '0.8rem', fontStyle: 'italic'}}
+                                >
+                                    {def}
+                                </Typography>
+                            ))}
+                        </Box>
+                        <Divider sx={{my: 1, borderColor: alpha('#fff', 0.08)}}/>
+                    </>
+                )}
+
                 {/* Definitions */}
                 <Box sx={{display: 'flex', flexDirection: 'column', gap: 0.75}}>
                     {entry.definitions.map((def, i) => (
@@ -175,6 +225,43 @@ const WordPopup = ({entry, anchor, onClose}: WordPopupProps) => {
                         </Box>
                     ))}
                 </Box>
+                {/* Synonyms */}
+                {entry.synonyms && entry.synonyms.length > 0 && (
+                    <>
+                        <Divider sx={{my: 1, borderColor: alpha('#fff', 0.08)}}/>
+                        <Box>
+                            <Typography variant="caption" sx={{
+                                color: 'text.disabled',
+                                fontSize: '0.65rem',
+                                fontWeight: 700,
+                                letterSpacing: '0.08em',
+                                textTransform: 'uppercase',
+                                display: 'block',
+                                mb: 0.75,
+                            }}>
+                                Synonyms
+                            </Typography>
+                            <Box sx={{display: 'flex', flexWrap: 'wrap', gap: 0.5}}>
+                                {entry.synonyms.map((syn, i) => (
+                                    <Chip
+                                        key={i}
+                                        label={syn}
+                                        size="small"
+                                        sx={{
+                                            height: 20,
+                                            fontSize: '0.7rem',
+                                            bgcolor: alpha('#fff', 0.05),
+                                            color: 'text.secondary',
+                                            border: '1px solid',
+                                            borderColor: alpha('#fff', 0.08),
+                                            '& .MuiChip-label': {px: 1},
+                                        }}
+                                    />
+                                ))}
+                            </Box>
+                        </Box>
+                    </>
+                )}
             </Paper>
         </Fade>
     );
@@ -266,9 +353,10 @@ const RenderedChunk = ({chunk, onWordClick}: RenderedChunkProps) => {
 interface StoryReaderProps {
     story: StorySummary;
     onBack: () => void;
+    onDeleted: (storyId: string) => void;
 }
 
-const StoryReader = ({story, onBack}: StoryReaderProps) => {
+const StoryReader = ({story, onBack, onDeleted}: StoryReaderProps) => {
     const theme = useTheme();
 
     // Refs for chunk tracking — avoids stale closure issues with useCallback
@@ -283,11 +371,92 @@ const StoryReader = ({story, onBack}: StoryReaderProps) => {
     ]);
     const [popup, setPopup] = useState<{ entry: VocabEntry; anchor: { x: number; y: number } } | null>(null);
 
+    const [selectionButton, setSelectionButton] = useState<{
+        x: number;
+        y: number;
+        text: string;
+    } | null>(null);
+    const [explanationPanel, setExplanationPanel] = useState<{
+        selectedText: string;
+        content: string;
+        isStreaming: boolean;
+    } | null>(null);
+
     const topSentinelRef = useRef<HTMLDivElement>(null);
     const bottomSentinelRef = useRef<HTMLDivElement>(null);
     const chunkRefs = useRef<Map<number, HTMLDivElement>>(new Map());
     const chunkHeights = useRef<Map<number, number>>(new Map());
 
+
+    const handleTextSelection = useCallback(() => {
+        const selection = window.getSelection();
+        const text = selection?.toString().trim();
+
+        if (!text || text.length < 3) {
+            setSelectionButton(null);
+            return;
+        }
+
+        const range = selection!.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+
+        setSelectionButton({
+            text,
+            x: rect.left + rect.width / 2,
+            y: rect.top - 8,  // 8px above the selection
+        });
+    }, []);
+
+// Hide button when selection is cleared
+    useEffect(() => {
+        const handleSelectionChange = () => {
+            const text = window.getSelection()?.toString().trim();
+            if (!text) setSelectionButton(null);
+        };
+        document.addEventListener('selectionchange', handleSelectionChange);
+        return () => document.removeEventListener('selectionchange', handleSelectionChange);
+    }, []);
+
+    const handleExplain = useCallback(async (text: string) => {
+        setSelectionButton(null);
+        window.getSelection()?.removeAllRanges();
+        setExplanationPanel({selectedText: text, content: '', isStreaming: true});
+
+        try {
+            const token = localStorage.getItem('access_token');
+
+            const response = await fetch(`${BASE_URL}/stories/explain`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({selected_text: text}),
+            });
+
+            if (!response.ok) throw new Error('Request failed');
+
+            const reader = response.body!.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const {done, value} = await reader.read();
+                if (done) break;
+                const chunk = decoder.decode(value, {stream: true});
+                setExplanationPanel(prev =>
+                    prev ? {...prev, content: prev.content + chunk} : prev
+                );
+            }
+
+            setExplanationPanel(prev =>
+                prev ? {...prev, isStreaming: false} : prev
+            );
+        } catch (e) {
+            setExplanationPanel(prev =>
+                prev ? {...prev, content: 'Failed to get explanation. Please try again.', isStreaming: false} : prev
+            );
+        }
+    }, []);
     const loadChunk = useCallback(async (index: number) => {
         if (index < 0 || index >= story.chunk_count) return;
         if (loadedChunks.current.has(index) || loadingChunks.current.has(index)) return;
@@ -359,8 +528,12 @@ const StoryReader = ({story, onBack}: StoryReaderProps) => {
     const diffBg = DIFFICULTY_BG[story.difficulty_label] ?? '#1e293b';
 
     return (
-        <Box sx={{display: 'flex', flexDirection: 'column', height: '100%'}}>
-            {/* Header */}
+        <Box sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            position: 'relative'
+        }}>            {/* Header */}
             <Box sx={{
                 px: 3, py: 2,
                 borderBottom: '1px solid',
@@ -400,12 +573,28 @@ const StoryReader = ({story, onBack}: StoryReaderProps) => {
                     <IconButton size="small" sx={{color: 'text.secondary'}}>
                         <InfoOutlinedIcon fontSize="small"/>
                     </IconButton>
+
+                </Tooltip>
+                <Tooltip title="Delete story">
+                    <IconButton
+                        size="small"
+                        onClick={async () => {
+                            if (!confirm(`Delete "${story.title}"? This cannot be undone.`)) return;
+                            await deleteStory(story.id);
+                            onDeleted(story.id);
+                            onBack();
+                        }}
+                        sx={{color: alpha('#ef4444', 0.6), '&:hover': {color: '#ef4444'}}}
+                    >
+                        <DeleteOutlineIcon fontSize="small"/>
+                    </IconButton>
                 </Tooltip>
             </Box>
 
             {/* Scrollable reading area */}
             <Box
                 onScroll={handleScroll}
+                onMouseUp={handleTextSelection}
                 sx={{
                     flex: 1,
                     overflowY: 'auto',
@@ -415,6 +604,9 @@ const StoryReader = ({story, onBack}: StoryReaderProps) => {
                     mx: 'auto',
                     width: '100%',
                     boxSizing: 'border-box',
+                    // Extra bottom padding so last content isn't hidden behind the panel
+                    pb: explanationPanel ? '42%' : 4,
+                    transition: 'padding-bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
             >
                 {visibleRange[0] > 0 && (
@@ -483,6 +675,181 @@ const StoryReader = ({story, onBack}: StoryReaderProps) => {
                     onClose={() => setPopup(null)}
                 />
             )}
+            {selectionButton && (
+                <Box
+                    onClick={() => handleExplain(selectionButton.text)}
+                    sx={{
+                        position: 'fixed',
+                        left: selectionButton.x,
+                        top: selectionButton.y,
+                        transform: 'translate(-50%, -100%)',
+                        zIndex: 9000,
+                        px: 1.5,
+                        py: 0.6,
+                        borderRadius: 1.5,
+                        bgcolor: '#0f172a',
+                        border: '1px solid',
+                        borderColor: alpha(theme.palette.primary.main, 0.6),
+                        color: 'primary.main',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        letterSpacing: '0.04em',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        boxShadow: `0 4px 20px rgba(0,0,0,0.4), 0 0 0 1px ${alpha(theme.palette.primary.main, 0.2)}`,
+                        transition: 'all 0.12s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.75,
+                        '&:hover': {
+                            bgcolor: alpha(theme.palette.primary.main, 0.15),
+                            borderColor: 'primary.main',
+                        },
+                        // Arrow pointing down
+                        '&::after': {
+                            content: '""',
+                            position: 'absolute',
+                            top: '100%',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            borderLeft: '5px solid transparent',
+                            borderRight: '5px solid transparent',
+                            borderTop: `5px solid ${alpha(theme.palette.primary.main, 0.6)}`,
+                        }
+                    }}
+                >
+                    <AutoStoriesIcon sx={{fontSize: 13}}/>
+                    Explanation
+                </Box>
+            )}
+            {/* Explanation panel — slides up from bottom, sits inside the reader layout */}
+            <Box
+                sx={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: explanationPanel ? '38%' : 0,
+                    minHeight: explanationPanel ? 200 : 0,
+                    transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    overflow: 'hidden',
+                    zIndex: 100,
+                    bgcolor: '#080f1a',
+                    borderTop: explanationPanel ? '1px solid' : 'none',
+                    borderColor: alpha(theme.palette.primary.main, 0.2),
+                    display: 'flex',
+                    flexDirection: 'column',
+                }}
+            >
+                {explanationPanel && (
+                    <>
+                        {/* Panel header */}
+                        <Box sx={{
+                            px: 2.5,
+                            py: 1.25,
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            justifyContent: 'space-between',
+                            gap: 2,
+                            borderBottom: '1px solid',
+                            borderColor: alpha('#fff', 0.06),
+                            flexShrink: 0,
+                        }}>
+                            <Box sx={{flex: 1, minWidth: 0}}>
+                                <Typography variant="caption" sx={{
+                                    color: 'primary.main',
+                                    fontWeight: 700,
+                                    fontSize: '0.65rem',
+                                    letterSpacing: '0.08em',
+                                    textTransform: 'uppercase',
+                                    display: 'block',
+                                    mb: 0.25,
+                                }}>
+                                    Explanation
+                                </Typography>
+                                {/* The selected text — truncated */}
+                                <Typography variant="caption" sx={{
+                                    color: alpha('#fff', 0.35),
+                                    fontSize: '0.7rem',
+                                    fontStyle: 'italic',
+                                    display: 'block',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                }}>
+                                    "{explanationPanel.selectedText}"
+                                </Typography>
+                            </Box>
+                            <IconButton
+                                size="small"
+                                onClick={() => setExplanationPanel(null)}
+                                sx={{color: alpha('#fff', 0.4), flexShrink: 0, mt: -0.5}}
+                            >
+                                <CloseIcon sx={{fontSize: 16}}/>
+                            </IconButton>
+                        </Box>
+
+                        {/* Panel body — scrollable */}
+                        <Box sx={{
+                            flex: 1,
+                            overflowY: 'auto',
+                            px: 2.5,
+                            py: 2,
+                            '&::-webkit-scrollbar': {width: 4},
+                            '&::-webkit-scrollbar-track': {bgcolor: 'transparent'},
+                            '&::-webkit-scrollbar-thumb': {
+                                bgcolor: alpha(theme.palette.primary.main, 0.3),
+                                borderRadius: 2,
+                            },
+                        }}>
+                            {explanationPanel.isStreaming && !explanationPanel.content ? (
+                                // Loading skeleton
+                                <Box sx={{display: 'flex', flexDirection: 'column', gap: 1}}>
+                                    {[90, 75, 85, 60].map((w, i) => (
+                                        <Skeleton
+                                            key={i}
+                                            variant="text"
+                                            width={`${w}%`}
+                                            sx={{bgcolor: alpha('#fff', 0.06)}}
+                                        />
+                                    ))}
+                                </Box>
+                            ) : (
+                                <Typography
+                                    variant="body2"
+                                    sx={{
+                                        color: alpha('#fff', 0.85),
+                                        lineHeight: 1.8,
+                                        fontSize: '0.875rem',
+                                        whiteSpace: 'pre-wrap',
+                                    }}
+                                >
+                                    {explanationPanel.content}
+                                    {/* Blinking cursor while streaming */}
+                                    {explanationPanel.isStreaming && (
+                                        <Box
+                                            component="span"
+                                            sx={{
+                                                display: 'inline-block',
+                                                width: '2px',
+                                                height: '1em',
+                                                bgcolor: 'primary.main',
+                                                ml: 0.25,
+                                                verticalAlign: 'text-bottom',
+                                                '@keyframes blink': {
+                                                    '0%, 100%': {opacity: 1},
+                                                    '50%': {opacity: 0},
+                                                },
+                                                animation: 'blink 1s step-end infinite',
+                                            }}
+                                        />
+                                    )}
+                                </Typography>
+                            )}
+                        </Box>
+                    </>
+                )}
+            </Box>
         </Box>
     );
 };
@@ -532,7 +899,7 @@ const StoryCard = ({story, onOpen}: StoryCardProps) => {
                     bgcolor: alpha(theme.palette.primary.main, 0.05),
                     transform: 'translateY(-1px)',
                 },
-                '&:active': { cursor: 'grabbing' },
+                '&:active': {cursor: 'grabbing'},
             }}
         >
             <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1}}>
@@ -601,43 +968,81 @@ interface UploadPanelProps {
 const UploadPanel = ({onUploaded}: UploadPanelProps) => {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
+    const [file, setFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isDragOver, setIsDragOver] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const theme = useTheme();
 
+    const ACCEPTED_TYPES = ['.txt', '.epub', '.pdf'];
+    const ACCEPTED_MIME = ['text/plain', 'application/epub+zip', 'application/pdf'];
+
+    const validateFile = (f: File): string | null => {
+        if (!ACCEPTED_MIME.includes(f.type) && !ACCEPTED_TYPES.some(ext => f.name.endsWith(ext))) {
+            return `Unsupported file type. Please upload a .txt, .epub, or .pdf file.`;
+        }
+        if (f.size > 5 * 1024 * 1024) {
+            return 'File too large. Maximum size is 5MB.';
+        }
+        return null;
+    };
+
+    const handleFileSelected = (f: File) => {
+        const err = validateFile(f);
+        if (err) {
+            setError(err);
+            return;
+        }
+        setError(null);
+        setFile(f);
+        // Auto-populate title from filename if title is empty
+        if (!title.trim()) {
+            setTitle(f.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '));
+        }
+        // Clear manual content — file takes priority
+        setContent('');
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        const dropped = e.dataTransfer.files[0];
+        if (dropped) handleFileSelected(dropped);
+    };
+
     const handleUpload = async () => {
-        if (!title.trim() || !content.trim()) return;
+        if (!title.trim()) return;
+        if (!file && !content.trim()) return;
+
         setUploading(true);
         setError(null);
 
         try {
             const formData = new FormData();
             formData.append('title', title.trim());
-            formData.append('content', content.trim());
-            // If you later add file uploads or other fields:
-            // formData.append('file', file);
-            // formData.append('source_url', source_url);
-            // formData.append('tags', JSON.stringify(tags));
+            if (file) {
+                formData.append('file', file);
+            } else {
+                formData.append('content', content.trim());
+            }
 
-            const res = await api.post("/stories/upload", formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
+            await api.post("/stories/upload", formData, {
+                headers: {'Content-Type': 'multipart/form-data'},
             });
 
-            // Handle success
             setTitle('');
             setContent('');
+            setFile(null);
             onUploaded();
         } catch (e: any) {
-            // Handle error
-            const errorMessage = e.response?.data?.detail ?? e.message ?? 'Upload failed';
-            setError(errorMessage);
+            setError(e.response?.data?.detail ?? e.message ?? 'Upload failed');
         } finally {
             setUploading(false);
         }
     };
 
+    const canSubmit = !uploading && title.trim() && (file || content.trim());
 
     return (
         <Box sx={{p: 2}}>
@@ -650,6 +1055,7 @@ const UploadPanel = ({onUploaded}: UploadPanelProps) => {
             }}>
                 Add a Story
             </Typography>
+
             <TextField
                 fullWidth
                 size="small"
@@ -667,36 +1073,143 @@ const UploadPanel = ({onUploaded}: UploadPanelProps) => {
                     }
                 }}
             />
-            <TextField
-                fullWidth
-                multiline
-                rows={5}
-                size="small"
-                placeholder="Paste German text here…"
-                value={content}
-                onChange={e => setContent(e.target.value)}
-                sx={{mb: 1.5}}
-                slotProps={{
-                    input: {
-                        sx: {
-                            borderRadius: 2,
-                            bgcolor: alpha('#fff', 0.04),
-                            fontSize: '0.875rem',
-                            fontFamily: 'Georgia, serif',
-                            lineHeight: 1.7,
-                        }
-                    }
+
+            {/* File drop zone */}
+            <Box
+                onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragOver(true);
+                }}
+                onDragLeave={() => setIsDragOver(false)}
+                onDrop={handleDrop}
+                onClick={() => !file && fileInputRef.current?.click()}
+                sx={{
+                    mb: 1.5,
+                    p: 2,
+                    borderRadius: 2,
+                    border: '1px dashed',
+                    borderColor: isDragOver
+                        ? 'primary.main'
+                        : file
+                            ? alpha(theme.palette.success.main, 0.5)
+                            : alpha('#fff', 0.12),
+                    bgcolor: isDragOver
+                        ? alpha(theme.palette.primary.main, 0.06)
+                        : file
+                            ? alpha(theme.palette.success.main, 0.04)
+                            : alpha('#fff', 0.02),
+                    cursor: file ? 'default' : 'pointer',
+                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
+                    '&:hover': !file ? {
+                        borderColor: alpha(theme.palette.primary.main, 0.5),
+                        bgcolor: alpha(theme.palette.primary.main, 0.04),
+                    } : {},
+                }}
+            >
+                {file ? (
+                    <>
+                        <InsertDriveFileIcon sx={{fontSize: 20, color: 'success.main', flexShrink: 0}}/>
+                        <Box sx={{flex: 1, minWidth: 0}}>
+                            <Typography variant="caption" fontWeight={600} color="success.main" noWrap
+                                        sx={{display: 'block'}}>
+                                {file.name}
+                            </Typography>
+                            <Typography variant="caption" color="text.disabled" sx={{fontSize: '0.65rem'}}>
+                                {(file.size / 1024).toFixed(0)} KB · {file.name.split('.').pop()?.toUpperCase()}
+                            </Typography>
+                        </Box>
+                        <IconButton
+                            size="small"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setFile(null);
+                            }}
+                            sx={{color: 'text.disabled', flexShrink: 0}}
+                        >
+                            <CloseIcon sx={{fontSize: 14}}/>
+                        </IconButton>
+                    </>
+                ) : (
+                    <>
+                        <UploadFileIcon sx={{
+                            fontSize: 20,
+                            color: isDragOver ? 'primary.main' : 'text.disabled',
+                            flexShrink: 0,
+                        }}/>
+                        <Box>
+                            <Typography variant="caption" color={isDragOver ? 'primary.main' : 'text.secondary'}
+                                        fontWeight={600} sx={{display: 'block'}}>
+                                {isDragOver ? 'Drop to upload' : 'Drop a file or click to browse'}
+                            </Typography>
+                            <Typography variant="caption" color="text.disabled" sx={{fontSize: '0.65rem'}}>
+                                .txt · .epub · .pdf — max 5MB
+                            </Typography>
+                        </Box>
+                    </>
+                )}
+            </Box>
+
+            {/* Hidden file input */}
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,.epub,.pdf"
+                style={{display: 'none'}}
+                onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleFileSelected(f);
+                    e.target.value = ''; // reset so same file can be re-selected
                 }}
             />
+
+            {/* Divider with OR — only shown when no file is attached */}
+            {!file && (
+                <>
+                    <Box sx={{display: 'flex', alignItems: 'center', gap: 1, mb: 1.5}}>
+                        <Divider sx={{flex: 1, borderColor: alpha('#fff', 0.06)}}/>
+                        <Typography variant="caption" color="text.disabled" sx={{fontSize: '0.65rem'}}>
+                            or paste text
+                        </Typography>
+                        <Divider sx={{flex: 1, borderColor: alpha('#fff', 0.06)}}/>
+                    </Box>
+
+                    <TextField
+                        fullWidth
+                        multiline
+                        rows={5}
+                        size="small"
+                        placeholder="Paste German text here…"
+                        value={content}
+                        onChange={e => setContent(e.target.value)}
+                        sx={{mb: 1.5}}
+                        slotProps={{
+                            input: {
+                                sx: {
+                                    borderRadius: 2,
+                                    bgcolor: alpha('#fff', 0.04),
+                                    fontSize: '0.875rem',
+                                    fontFamily: 'Georgia, serif',
+                                    lineHeight: 1.7,
+                                }
+                            }
+                        }}
+                    />
+                </>
+            )}
+
             {error && (
                 <Alert severity="error" sx={{mb: 1.5, fontSize: '0.75rem'}}>{error}</Alert>
             )}
+
             <Button
                 fullWidth
                 variant="contained"
                 size="small"
                 onClick={handleUpload}
-                disabled={uploading || !title.trim() || !content.trim()}
+                disabled={!canSubmit}
                 startIcon={uploading ? <CircularProgress size={14} color="inherit"/> : <UploadFileIcon/>}
                 sx={{borderRadius: 2, textTransform: 'none', fontWeight: 600}}
             >
@@ -710,9 +1223,10 @@ const UploadPanel = ({onUploaded}: UploadPanelProps) => {
 
 interface StoriesPageProps {
     visible: boolean; // controlled by the parent tab system
+    onLoadStoriesRef?: (fn: () => void) => void;
 }
-
-export const StoriesPage = ({visible}: StoriesPageProps) => {
+    
+export const StoriesPage = ({visible, onLoadStoriesRef}: StoriesPageProps) => {
     const [stories, setStories] = useState<StorySummary[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -733,7 +1247,12 @@ export const StoriesPage = ({visible}: StoriesPageProps) => {
         }
     }, []);
 
+    const handleStoryDeleted = (storyId: string) => {
+        setStories(prev => prev.filter(s => s.id !== storyId));
+    };
+
     useEffect(() => {
+        onLoadStoriesRef?.(loadStories);
         loadStories();
     }, [loadStories]);
 
@@ -749,6 +1268,7 @@ export const StoriesPage = ({visible}: StoriesPageProps) => {
                 <StoryReader
                     story={activeStory}
                     onBack={() => setActiveStory(null)}
+                    onDeleted={handleStoryDeleted}
                 />
             </Box>
         );
