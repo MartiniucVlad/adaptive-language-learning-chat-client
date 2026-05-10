@@ -68,7 +68,7 @@ const MainLayout = () => {
     return (
         <Box sx={{display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden'}}>
             <AppBar position="sticky" color="default" sx={{zIndex: 1201}}> {/* zIndex keeps it above drawer */}
-                <Toolbar variant="dense" sx={{minHeight: 64}}> {/* Taller header feels more premium */}
+                <Toolbar variant="dense" sx={{minHeight: 45}}> {/* Taller header feels more premium */}
 
                     {/* 1. Brand Logo / Name */}
                     <Typography

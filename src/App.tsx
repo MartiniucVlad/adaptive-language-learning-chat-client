@@ -6,9 +6,9 @@ import ChatsPage from './components/chat';
 import type {JSX} from "react";
 import MainLayout from "./MainLayout.tsx";
 import FriendsPage from "./components/FriendsPage.tsx";
-import {AnkiProvider} from "./components/ankiNotes/AnkiContext.tsx";
 import {WebSocketProvider} from "./services/WebSocketContext.tsx";
-import { ColorModeProvider } from './ThemeContext';
+import {ColorModeProvider} from './ThemeContext';
+import {SrsProvider} from "./components/a-srsNotes/SrsContext.tsx";
 
 const ProtectedRoute = ({children}: { children: JSX.Element }) => {
     const token = localStorage.getItem('access_token');
@@ -18,7 +18,6 @@ const ProtectedRoute = ({children}: { children: JSX.Element }) => {
     return children;
 };
 
-// If you ARE logged in, go to Chats (you don't need to login again)
 const LoggedOutRoutes = ({children}: { children: JSX.Element }) => {
     const token = localStorage.getItem('access_token');
     if (token) {
@@ -33,7 +32,9 @@ function App() {
         <BrowserRouter>
             <ColorModeProvider>
                 <WebSocketProvider token={token}>
-                    <AnkiProvider>
+                    {/* Keep SrsProvider wrapping everything so React Router
+                        sees one single route tree and handles wildcards correctly */}
+                    <SrsProvider>
                         <Routes>
                             {/* --- PUBLIC ROUTES (Only accessible if NOT logged in) --- */}
                             <Route
@@ -58,15 +59,12 @@ function App() {
                             <Route element={<ProtectedRoute><MainLayout/></ProtectedRoute>}>
                                 <Route path="/chats" element={<ChatsPage/>}/>
                                 <Route path="/friends" element={<FriendsPage/>}/>
-                                {/* Add other protected routes like /profile here later */}
                             </Route>
+
                             {/* --- DEFAULT REDIRECT --- */}
-                            {/* If the path is unknown, we send them to Register.
-                However, since Register is now wrapped in LoggedOutRoutes,
-                a logged-in user will be auto-bounced to /chats. Perfect! */}
                             <Route path="*" element={<Navigate to="/register"/>}/>
                         </Routes>
-                    </AnkiProvider>
+                    </SrsProvider>
                 </WebSocketProvider>
             </ColorModeProvider>
         </BrowserRouter>

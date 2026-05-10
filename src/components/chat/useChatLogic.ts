@@ -12,7 +12,6 @@ export const useChatLogic = () => {
     const currentUser = localStorage.getItem('username') || '';
     const token = localStorage.getItem('access_token');
 
-    const {selectedDeckRef} = useAnki();
     const {sendMessage, subscribe} = useWebSocket();
     const [attachedStory, setAttachedStory] = useState<StorySummary | null>(null);
 
@@ -215,13 +214,12 @@ export const useChatLogic = () => {
         if (!content.trim() && !attachedStory) return;
         if (!activeConversationId) return;
 
-        const selectedDeck = selectedDeckRef.current;
 
         sendMessage({
             type: "chat_message",
             conversation_id: activeConversationId,
             content: content.trim(),
-            deck_name: selectedDeck || null,
+            deck_name: null,
             story_attachment: attachedStory ? {
                 story_id: attachedStory.id,
                 title: attachedStory.title,
