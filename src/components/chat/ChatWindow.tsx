@@ -1,7 +1,6 @@
 import {Box, AppBar, Toolbar, Typography, Avatar, IconButton, Tooltip, Paper, useTheme} from '@mui/material';
 import SchoolIcon from '@mui/icons-material/School'; // Import School Icon
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
-import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import SemanticSearchPng from '../../assets/semantic-search-icon.png';
 import Linkify from 'linkify-react';
 import type {Message, ConversationSummary} from './types';
@@ -77,49 +76,6 @@ export const ChatWindow = ({
         }
     }
 
-    // --- 1. Modern Empty State ---
-    // if (!activeId || !conversation) {
-    //     return (
-    //         <Box sx={{
-    //             display: 'flex',
-    //             flexDirection: 'column',
-    //             alignItems: 'center',
-    //             justifyContent: 'center',
-    //             height: '100%',
-    //             bgcolor: 'background.default', // Dynamic Background
-    //             flex: 1
-    //         }}>
-    //             <Paper
-    //                 elevation={0}
-    //                 sx={{
-    //                     p: 4,
-    //                     display: 'flex',
-    //                     flexDirection: 'column',
-    //                     alignItems: 'center',
-    //                     bgcolor: 'transparent'
-    //                 }}
-    //             >
-    //                 <Box sx={{
-    //                     width: 80, height: 80,
-    //                     bgcolor: theme.palette.mode === 'light' ? '#e0e7ff' : '#312e81', // Indigo-100 vs Indigo-900
-    //                     borderRadius: '50%',
-    //                     display: 'flex',
-    //                     alignItems: 'center',
-    //                     justifyContent: 'center',
-    //                     mb: 2
-    //                 }}>
-    //                     <ChatBubbleOutlineIcon sx={{fontSize: 40, color: 'primary.main'}}/>
-    //                 </Box>
-    //                 <Typography variant="h6" sx={{color: 'text.primary', fontWeight: 700}}>
-    //                     No Chat Selected
-    //                 </Typography>
-    //                 <Typography variant="body2" sx={{color: 'text.secondary', mt: 1}}>
-    //                     Select a conversation from the sidebar to start messaging.
-    //                 </Typography>
-    //             </Paper>
-    //         </Box>
-    //     );
-    // }
 
     if (!activeId || !conversation)
         return

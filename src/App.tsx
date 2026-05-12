@@ -2,7 +2,7 @@
 import {BrowserRouter, Routes, Route, Navigate} from 'react-router-dom';
 import RegisterForm from './components/RegisterForm.tsx';
 import LoginForm from './components/LoginForm.tsx';
-import ChatsPage from './components/chat';
+import MainPage from './components/chat';
 import type {JSX} from "react";
 import MainLayout from "./MainLayout.tsx";
 import FriendsPage from "./components/FriendsPage.tsx";
@@ -57,7 +57,7 @@ function App() {
 
                             {/* --- PROTECTED ROUTES (Only accessible if logged in) --- */}
                             <Route element={<ProtectedRoute><MainLayout/></ProtectedRoute>}>
-                                <Route path="/chats" element={<ChatsPage/>}/>
+                                <Route path="/chats" element={<MainPage/>}/>
                                 <Route path="/friends" element={<FriendsPage/>}/>
                             </Route>
 

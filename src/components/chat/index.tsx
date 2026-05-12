@@ -4,7 +4,7 @@ import {alpha} from '@mui/material/styles';
 import ForumIcon from '@mui/icons-material/Forum';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import PsychologyIcon from '@mui/icons-material/Psychology';
-import ChatIcon from '@mui/icons-material/Chat'; // Added for ChatWindow toggle
+import ChatIcon from '@mui/icons-material/Chat';
 import {useChatLogic} from './useChatLogic';
 import {ChatSidebar} from './ChatSidebar.tsx';
 import {ChatWindow} from './ChatWindow';
@@ -17,7 +17,6 @@ import {StoriesPage} from "./StoriesPage.tsx";
 import {useWebSocket} from "../../services/WebSocketContext.tsx";
 import {Group as PanelGroup, Panel, Separator as PanelResizeHandle} from 'react-resizable-panels';
 import {DragProvider} from "./DragContext.tsx";
-
 
 // ─── Multi-select toggle button for the activity strip ────────────────────────
 
@@ -52,10 +51,9 @@ const StripButton = ({icon, label, active, onClick}: StripButtonProps) => (
     </Tooltip>
 );
 
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-const ChatsPage = () => {
+const MainPage = () => {
     const {
         conversations, activeConversationId, messages, currentUser,
         highlightedMessageId, messagesEndRef,
@@ -65,11 +63,11 @@ const ChatsPage = () => {
         fetchFriendsForNewChat, fetchFriendsForGroup, createGroup, deleteConversation, startDM
     } = useChatLogic();
 
-    // FIX #2: ChatWindow is now independently toggleable
-    const [chatVisible, setChatVisible] = useState(true);
+    // FIX #2: All windows now default to closed (false)
+    const [chatVisible, setChatVisible] = useState(false);
     const [storiesVisible, setStoriesVisible] = useState(false);
     const [srsVisible, setSrsVisible] = useState(false);
-    const [chatWindowVisible, setChatWindowVisible] = useState(true);
+    const [chatWindowVisible, setChatWindowVisible] = useState(false);
 
     // Modal states
     const [isSemanticOpen, setIsSemanticOpen] = useState(false);
@@ -80,8 +78,10 @@ const ChatsPage = () => {
     const {subscribe} = useWebSocket();
     const loadStoriesRef = useRef<() => void>(() => {});
 
-    // FIX #1: Custom Auto-Save to prevent size resets
-    // This stores the exact sizes for every possible combination of open windows
+    // Reference to apply resizable panel sizes imperatively
+    const panelGroupRef = useRef<any>(null);
+
+    // Custom Auto-Save to prevent size resets
     const savedSizesRef = useRef<Record<string, number[]>>({});
 
     useEffect(() => {
@@ -202,11 +202,8 @@ const ChatsPage = () => {
     // Generate a unique string key based on WHICH panels are open (e.g., "chat-srs-chatwindow")
     const layoutKey = activePanels.map(p => p.id).join('-') || 'empty';
 
-    // FIX #3: Calculate sensible defaults for when a window is opened for the first time
-    // If 2 windows are open, they each get 50%. If 3 are open, ~33%. Prevents tiny windows.
+    // Calculate sensible defaults for when a window is opened for the first time
     const equalSplit = activePanels.length > 0 ? Math.floor(100 / activePanels.length) : 100;
-
-    // Look up if the user has manually resized this specific combination before
     const currentSavedSizes = savedSizesRef.current[layoutKey] || [];
 
     // Save sizes on every drag interaction
@@ -214,11 +211,26 @@ const ChatsPage = () => {
         savedSizesRef.current[layoutKey] = sizes;
     };
 
+    // FIX #1: Use the imperative API to set layout sizes dynamically.
+    // This removes the need for `key={layoutKey}` on the PanelGroup, so the Stories page never unmounts.
+    useEffect(() => {
+        const saved = savedSizesRef.current[layoutKey];
+        if (saved && saved.length === activePanels.length && panelGroupRef.current) {
+            // A tiny timeout allows React to mount the new Panel DOM nodes before enforcing sizes
+            setTimeout(() => {
+                if (panelGroupRef.current) {
+                    panelGroupRef.current.setLayout(saved);
+                }
+            }, 10);
+        }
+    }, [layoutKey, activePanels.length]);
+
     // Interleave Panels and Separators dynamically
     const panelElements = activePanels.flatMap((panel, index) => [
         <Panel
             key={panel.id}
-            // Use saved size if it exists, otherwise use the equal split default
+            id={panel.id} // Added id to track specific panels securely
+            order={index} // Added order to guarantee proper dynamic rendering
             defaultSize={currentSavedSizes[index] ?? equalSplit}
             minSize={15}
         >
@@ -276,10 +288,9 @@ const ChatsPage = () => {
                     </Box>
 
                     {/* ── Resizable panel area ── */}
-                    {/* The key forces a clean remount when layouts change, but handleLayout */}
-                    {/* ensures we inject the user's previous sizes immediately via defaultSize */}
+                    {/* key={layoutKey} was removed from here to prevent state destruction */}
                     <PanelGroup
-                        key={layoutKey}
+                        ref={panelGroupRef}
                         direction="horizontal"
                         onLayout={handleLayout}
                         style={{flex: 1, height: '100%'}}
@@ -322,4 +333,4 @@ const ChatsPage = () => {
     );
 };
 
-export default ChatsPage;
+export default MainPage;
