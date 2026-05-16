@@ -81,7 +81,7 @@ const MainLayout = () => {
                             WebkitBackgroundClip: 'text',
                             WebkitTextFillColor: 'transparent',
                         }}
-                        onClick={() => navigate('/chats')}
+                        onClick={() => navigate('/homepage')}
                     >
                         m-chat
                     </Typography>

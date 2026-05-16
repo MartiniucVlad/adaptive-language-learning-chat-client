@@ -1,6 +1,7 @@
 import {Box, AppBar, Toolbar, Typography, Avatar, IconButton, Tooltip, Paper, useTheme} from '@mui/material';
-import SchoolIcon from '@mui/icons-material/School'; // Import School Icon
+import SchoolIcon from '@mui/icons-material/School';
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack'; // Import Back Arrow
 import SemanticSearchPng from '../../assets/semantic-search-icon.png';
 import Linkify from 'linkify-react';
 import type {Message, ConversationSummary} from './types';
@@ -33,6 +34,7 @@ interface ChatWindowProps {
     attachedStory: StorySummary | null;
     onAttachStory: (story: StorySummary | null) => void;
     onStoryAcquired: () => void;
+    onBack: () => void; // Added onBack prop
 }
 
 export const ChatWindow = ({
@@ -49,10 +51,11 @@ export const ChatWindow = ({
                                onDeleteConversation,
                                attachedStory,
                                onAttachStory,
-                               onStoryAcquired
+                               onStoryAcquired,
+                               onBack // Destructure onBack
 
                            }: ChatWindowProps) => {
-    const theme = useTheme(); // Access the full theme object
+    const theme = useTheme();
     const [isInfoOpen, setIsInfoOpen] = useState(false);
 
     const {draggedStory, setDraggedStory} = useDrag();
@@ -76,9 +79,8 @@ export const ChatWindow = ({
         }
     }
 
-
     if (!activeId || !conversation)
-        return
+        return null;
 
     const activeName = getConversationName(conversation, currentUser);
 
@@ -94,11 +96,23 @@ export const ChatWindow = ({
                     bgcolor: 'background.paper',
                     borderBottom: 1,
                     borderColor: 'divider',
-                    px: 2,
+                    px: 1, // Reduced padding to accommodate back button
                     py: 0.5
                 }}
             >
                 <Toolbar disableGutters sx={{minHeight: '64px !important'}}>
+
+                    {/* BACK BUTTON */}
+                    <IconButton
+                        onClick={onBack}
+                        sx={{
+                            mr: 1,
+                            color: 'text.secondary',
+                            '&:hover': {bgcolor: 'action.hover', color: 'text.primary'}
+                        }}
+                    >
+                        <ArrowBackIcon/>
+                    </IconButton>
 
                     {/* CLICKABLE INFO SECTION */}
                     <Box
@@ -121,7 +135,7 @@ export const ChatWindow = ({
                             mr: 2,
                             fontSize: '1rem',
                             fontWeight: 600,
-                            color: '#fff' // Ensure initials are readable
+                            color: '#fff'
                         }}>
                             {conversation.type === 'group' ? <GroupAddIcon fontSize='small'/> : getInitials(activeName)}
                         </Avatar>
@@ -136,6 +150,7 @@ export const ChatWindow = ({
                             </Typography>
                         </Box>
                     </Box>
+
                     {/* 1. Semantic Search */}
                     <Tooltip title="Semantic Search">
                         <IconButton onClick={onOpenSemanticSearch} sx={{
@@ -151,23 +166,6 @@ export const ChatWindow = ({
                         </IconButton>
                     </Tooltip>
 
-                    {/* 2. Anki Toggle (New Location) */}
-                    <Tooltip title={isAnkiOpen ? "Close Learning Session" : "Open Learning Session"}>
-                        <IconButton
-                            onClick={onToggleAnki}
-                            sx={{
-                                color: isAnkiOpen ? 'secondary.main' : 'action.active',
-                                bgcolor: isAnkiOpen ? 'secondary.light' : 'transparent', // Highlight when active
-                                '&:hover': {
-                                    color: 'secondary.dark',
-                                    bgcolor: isAnkiOpen ? 'secondary.light' : 'action.hover'
-                                },
-                                mx: 0.5
-                            }}
-                        >
-                            <SchoolIcon/>
-                        </IconButton>
-                    </Tooltip>
 
                 </Toolbar>
             </AppBar>
@@ -178,7 +176,6 @@ export const ChatWindow = ({
                 p: 3,
                 overflowY: 'auto',
                 bgcolor: 'background.default',
-                // Dynamic Pattern: Dark dots on light bg, Light dots on dark bg
                 backgroundImage: theme.palette.mode === 'light'
                     ? 'radial-gradient(#cbd5e1 1px, transparent 1px)'
                     : 'radial-gradient(rgba(255,255,255,0.1) 1px, transparent 1px)',
@@ -241,7 +238,6 @@ export const ChatWindow = ({
                                         boxShadow: '0 2px 4px rgba(0,0,0,0.04)',
                                         position: 'relative',
                                         wordWrap: 'break-word',
-                                        // Slightly wider when there's an attachment to give the card room
                                         minWidth: attachment ? 260 : 'unset',
                                     }}
                                 >
@@ -270,7 +266,6 @@ export const ChatWindow = ({
                                                     : alpha(theme.palette.primary.main, 0.2),
                                             }}
                                         >
-                                            {/* Coloured top strip — acts as a visual anchor */}
                                             <Box sx={{
                                                 height: 3,
                                                 background: `linear-gradient(90deg, 
@@ -288,7 +283,6 @@ export const ChatWindow = ({
                                                 alignItems: 'center',
                                                 gap: 1.25,
                                             }}>
-                                                {/* Icon */}
                                                 <Box sx={{
                                                     width: 34,
                                                     height: 34,
@@ -307,7 +301,6 @@ export const ChatWindow = ({
                                                     }}/>
                                                 </Box>
 
-                                                {/* Title + meta */}
                                                 <Box sx={{flex: 1, minWidth: 0}}>
                                                     <Typography
                                                         variant="caption"
@@ -352,7 +345,6 @@ export const ChatWindow = ({
                                                 </Box>
                                             </Box>
 
-                                            {/* Acquire button + error — only shown on received messages */}
                                             {!isMine && (
                                                 <Box sx={{px: 1.5, pb: 1.25}}>
                                                     <Box
@@ -414,7 +406,6 @@ export const ChatWindow = ({
                                         </Box>
                                     )}
 
-                                    {/* Message text — only rendered if there's content */}
                                     {msg.content && (
                                         <Typography
                                             variant="body1"
@@ -434,7 +425,6 @@ export const ChatWindow = ({
                                         </Typography>
                                     )}
 
-                                    {/* Timestamp */}
                                     <Typography variant="caption" sx={{
                                         display: 'block',
                                         textAlign: 'right',
@@ -490,7 +480,6 @@ export const ChatWindow = ({
                         : 'transparent',
                 }}
             >
-                {/* Attachment preview — shown above the text input when a story is attached */}
                 {attachedStory && (
                     <Box sx={{
                         display: 'flex',

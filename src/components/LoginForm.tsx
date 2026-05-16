@@ -61,7 +61,7 @@ const LoginForm = () => {
       localStorage.setItem('access_token', data.access_token);
       localStorage.setItem('refresh_token', data.refresh_token);
       localStorage.setItem('username', username);
-      navigate('/chats');
+      navigate('/homepage');
 
     } catch (err: any) {
       // Axios error handling is slightly different

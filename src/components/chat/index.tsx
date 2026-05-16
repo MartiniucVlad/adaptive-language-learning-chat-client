@@ -4,7 +4,6 @@ import {alpha} from '@mui/material/styles';
 import ForumIcon from '@mui/icons-material/Forum';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import PsychologyIcon from '@mui/icons-material/Psychology';
-import ChatIcon from '@mui/icons-material/Chat';
 import {useChatLogic} from './useChatLogic';
 import {ChatSidebar} from './ChatSidebar.tsx';
 import {ChatWindow} from './ChatWindow';
@@ -63,11 +62,12 @@ const MainPage = () => {
         fetchFriendsForNewChat, fetchFriendsForGroup, createGroup, deleteConversation, startDM
     } = useChatLogic();
 
-    // FIX #2: All windows now default to closed (false)
-    const [chatVisible, setChatVisible] = useState(false);
-    const [storiesVisible, setStoriesVisible] = useState(false);
+    const [chatVisible, setChatVisible] = useState(true);
+    const [storiesVisible, setStoriesVisible] = useState(true);
     const [srsVisible, setSrsVisible] = useState(false);
-    const [chatWindowVisible, setChatWindowVisible] = useState(false);
+
+    // New state to toggle between Sidebar (list) and ChatWindow (messages)
+    const [showChatView, setShowChatView] = useState(false);
 
     // Modal states
     const [isSemanticOpen, setIsSemanticOpen] = useState(false);
@@ -95,11 +95,19 @@ const MainPage = () => {
         fetchFriendsForNewChat();
         setIsNewChatOpen(true);
     };
+
     const handleCreateDM = async (friend: string) => {
-        if (await startDM(friend)) setIsNewChatOpen(false);
+        if (await startDM(friend)) {
+            setIsNewChatOpen(false);
+            setShowChatView(true); // Jump straight into the new chat
+        }
     };
+
     const handleCreateGroup = async (name: string, members: string[]) => {
-        if (await createGroup(name, members)) setIsNewChatOpen(false);
+        if (await createGroup(name, members)) {
+            setIsNewChatOpen(false);
+            setShowChatView(true); // Jump straight into the new group
+        }
     };
 
     const handleStartReview = (deckId: string) => {
@@ -126,15 +134,41 @@ const MainPage = () => {
             icon: <ForumIcon fontSize="small"/>,
             label: "Chats",
             content: (
-                <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                    <ChatSidebar
-                        conversations={conversations}
-                        activeId={activeConversationId}
-                        currentUser={currentUser}
-                        onSelect={handleSelectConversation}
-                        onNewChat={handleOpenNewChatUI}
-                        onLogout={handleLogout}
-                    />
+                <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                    {!showChatView ? (
+                        <ChatSidebar
+                            conversations={conversations}
+                            activeId={activeConversationId}
+                            currentUser={currentUser}
+                            onSelect={(conv) => {
+                                handleSelectConversation(conv);
+                                setShowChatView(true); // Switch to chat view when a conversation is clicked
+                            }}
+                            onNewChat={handleOpenNewChatUI}
+                            onLogout={handleLogout}
+                        />
+                    ) : (
+                        <ChatWindow
+                            activeId={activeConversationId}
+                            conversation={currentConv}
+                            messages={messages}
+                            currentUser={currentUser}
+                            highlightedMessageId={highlightedMessageId}
+                            messagesEndRef={messagesEndRef}
+                            onSendMessage={handleSendMessage}
+                            onOpenSemanticSearch={() => setIsSemanticOpen(true)}
+                            onToggleAnki={() => setSrsVisible(v => !v)}
+                            isAnkiOpen={srsVisible}
+                            onDeleteConversation={(id) => {
+                                deleteConversation(id);
+                                setShowChatView(false); // Go back to list if chat is deleted
+                            }}
+                            attachedStory={attachedStory}
+                            onAttachStory={setAttachedStory}
+                            onStoryAcquired={() => loadStoriesRef.current()}
+                            onBack={() => setShowChatView(false)} // Go back to list
+                        />
+                    )}
                 </Box>
             ),
         },
@@ -166,40 +200,13 @@ const MainPage = () => {
                     />
                 </Box>
             ),
-        },
-        {
-            id: 'chatwindow',
-            visible: chatWindowVisible,
-            toggle: () => setChatWindowVisible(v => !v),
-            icon: <ChatIcon fontSize="small"/>,
-            label: "Messages Window",
-            content: (
-                <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-                    <ChatWindow
-                        activeId={activeConversationId}
-                        conversation={currentConv}
-                        messages={messages}
-                        currentUser={currentUser}
-                        highlightedMessageId={highlightedMessageId}
-                        messagesEndRef={messagesEndRef}
-                        onSendMessage={handleSendMessage}
-                        onOpenSemanticSearch={() => setIsSemanticOpen(true)}
-                        onToggleAnki={() => setSrsVisible(v => !v)}
-                        isAnkiOpen={srsVisible}
-                        onDeleteConversation={deleteConversation}
-                        attachedStory={attachedStory}
-                        onAttachStory={setAttachedStory}
-                        onStoryAcquired={() => loadStoriesRef.current()}
-                    />
-                </Box>
-            ),
-        },
+        }
     ];
 
     // Filter down to only the ones that are toggled ON
     const activePanels = allPanelConfigs.filter(p => p.visible);
 
-    // Generate a unique string key based on WHICH panels are open (e.g., "chat-srs-chatwindow")
+    // Generate a unique string key based on WHICH panels are open
     const layoutKey = activePanels.map(p => p.id).join('-') || 'empty';
 
     // Calculate sensible defaults for when a window is opened for the first time
@@ -211,12 +218,9 @@ const MainPage = () => {
         savedSizesRef.current[layoutKey] = sizes;
     };
 
-    // FIX #1: Use the imperative API to set layout sizes dynamically.
-    // This removes the need for `key={layoutKey}` on the PanelGroup, so the Stories page never unmounts.
     useEffect(() => {
         const saved = savedSizesRef.current[layoutKey];
         if (saved && saved.length === activePanels.length && panelGroupRef.current) {
-            // A tiny timeout allows React to mount the new Panel DOM nodes before enforcing sizes
             setTimeout(() => {
                 if (panelGroupRef.current) {
                     panelGroupRef.current.setLayout(saved);
@@ -229,14 +233,13 @@ const MainPage = () => {
     const panelElements = activePanels.flatMap((panel, index) => [
         <Panel
             key={panel.id}
-            id={panel.id} // Added id to track specific panels securely
-            order={index} // Added order to guarantee proper dynamic rendering
+            id={panel.id}
+            order={index}
             defaultSize={currentSavedSizes[index] ?? equalSplit}
             minSize={15}
         >
             {panel.content}
         </Panel>,
-        // Add a separator unless it's the last panel
         ...(index < activePanels.length - 1 ? [
             <PanelResizeHandle
                 key={`sep-${panel.id}`}
@@ -288,7 +291,6 @@ const MainPage = () => {
                     </Box>
 
                     {/* ── Resizable panel area ── */}
-                    {/* key={layoutKey} was removed from here to prevent state destruction */}
                     <PanelGroup
                         ref={panelGroupRef}
                         direction="horizontal"

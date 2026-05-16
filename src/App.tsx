@@ -21,7 +21,7 @@ const ProtectedRoute = ({children}: { children: JSX.Element }) => {
 const LoggedOutRoutes = ({children}: { children: JSX.Element }) => {
     const token = localStorage.getItem('access_token');
     if (token) {
-        return <Navigate to="/chats" replace/>;
+        return <Navigate to="/homepage" replace/>;
     }
     return children;
 };
@@ -57,7 +57,7 @@ function App() {
 
                             {/* --- PROTECTED ROUTES (Only accessible if logged in) --- */}
                             <Route element={<ProtectedRoute><MainLayout/></ProtectedRoute>}>
-                                <Route path="/chats" element={<MainPage/>}/>
+                                <Route path="/homepage" element={<MainPage/>}/>
                                 <Route path="/friends" element={<FriendsPage/>}/>
                             </Route>
 
