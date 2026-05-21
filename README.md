@@ -1,73 +1,57 @@
-# React + TypeScript + Vite
+Adaptive Language Learning Platform for German
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A multi-modal, closed-loop cognitive load system that dynamically adapts German
+texts to a user's exact proficiency level. The platform integrates reading,
+spaced repetition, and real-time chat, utilizing locally hosted Large Language
+Models to rewrite complex texts while strictly retaining the specific vocabulary
+words the user is currently studying.
 
-Currently, two official plugins are available:
+Core Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+  - Stories (Reading): Upload raw texts (TXT, PDF, EPUB). The backend
+    automatically chunks the text and uses spaCy to extract vocabulary against a
+    MongoDB-ingested Kaikki dictionary. Users can read, view definitions, and
+    export unknown words to their flashcards.
+  - Flashcards (FSRS): Implements the Free Spaced Repetition Scheduler. The
+    system tracks explicit memory states (Retrievability, Stability, Difficulty)
+    to quantify the user's exact vocabulary size.
+  - Real-Time Chat: WebSocket-based peer-to-peer messaging. If a beginner
+    receives a complex message from an advanced peer, they can trigger an AI
+    simplification that translates the message down to their comprehension
+    level.
 
-## React Compiler
+AI & Machine Learning Pipeline
 
-The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
+  - Dynamic Level Estimator: A mathematical engine that calculates a global
+    proficiency score (1.0 to 6.0) by blending implicit chat/reading metrics and
+    explicit FSRS retention data.
+  - Evaluator Model (GeistBERT): Fine-tuned for continuous regression (MSE) to
+    score text difficulty. The training pipeline utilizes strict tensor
+    truncation and random sentence cropping to completely eliminate length bias.
+  - Generator Model (Flan-T5-XL): Fine-tuned via QLoRA. Adapters were applied to
+    both attention matrices and dense feed-forward networks to ensure the model
+    simplifies grammar while strictly obeying prompts that mandate the retention
+    of user-known vocabulary.
 
-## Expanding the ESLint configuration
+Tech Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+  - Frontend: React, TypeScript, Material-UI, react-resizable-panels
+  - Backend: FastAPI, Python, WebSockets, asyncio
+  - Database & Caching: MongoDB, Redis
+  - NLP & ML: PyTorch, Hugging Face Transformers, PEFT (LoRA), spaCy
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Local Development Setup
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+1.  Prerequisites: Ensure MongoDB and Redis are installed and running locally.
+2.  Backend:
+      - Navigate to the backend directory.
+      - Install dependencies: pip install -r requirements.txt
+      - Start the server: uvicorn main:app --reload
+3.  Frontend:
+      - Navigate to the frontend directory.
+      - Install dependencies: npm install
+      - Start the development server: npm run dev
+4.  AI Models:
+      - The system requires local weights for the fine-tuned GeistBERT and
+        Flan-T5-XL models. Update the model directory paths in the backend
+        configuration before running inference.
