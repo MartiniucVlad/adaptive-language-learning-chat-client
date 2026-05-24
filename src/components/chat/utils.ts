@@ -16,6 +16,7 @@ export const getInitials = (name: string) =>
 
 export const getConversationName = (conv: any, currentUser: string) => {
     if (conv.type === 'group') return conv.name || 'Group Chat';
+    else if (conv.type === 'system') return conv.name || 'System Conversation';
     const other = conv.participants.find((p: string) => p !== currentUser);
     return other || 'Unknown';
 };

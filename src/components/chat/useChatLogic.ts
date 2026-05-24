@@ -180,14 +180,7 @@ export const useChatLogic = () => {
                 timestamp: msg.timestamp,
                 isMine: msg.sender === currentUser,
 
-                // --- NEW MAPPING ---
-                // If msg.anki_review exists, we pass it through.
-                // Since we removed 'learner', we rely on 'from' (msg.sender) if we ever need to know who it is.
-                ankiReview: msg.anki_review ? {
-                    tickedNotes: msg.anki_review.tickedNotes,
-                    messageReview: msg.anki_review.messageReview,
-                    deckName: msg.anki_review.deckName,
-                } : undefined,
+
                 attachedStory: msg.story_attachment ? {
                             id: msg.story_attachment.story_id,
                             title: msg.story_attachment.title,

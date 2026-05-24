@@ -3,7 +3,7 @@ export interface ConversationSummary {
   id: string;
   participants: string[];
   admins: string[];
-  type: 'private' | 'group';
+  type: 'private' | 'group' | 'system'
   name: string | null;
   created_at: string;
   last_message_preview: string | null;

@@ -1,7 +1,10 @@
-import {Box, AppBar, Toolbar, Typography, Avatar, IconButton, Tooltip, Paper, useTheme} from '@mui/material';
+import {
+    Box, AppBar, Toolbar, Typography, Avatar, IconButton, Tooltip, Paper, useTheme,
+    CircularProgress, Button, Divider
+} from '@mui/material';
 import SchoolIcon from '@mui/icons-material/School';
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack'; // Import Back Arrow
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SemanticSearchPng from '../../assets/semantic-search-icon.png';
 import Linkify from 'linkify-react';
 import type {Message, ConversationSummary} from './types';
@@ -13,8 +16,11 @@ import {ChatInfoDrawer} from "./modals/ChatInfoDrawer.tsx";
 import type {StorySummary} from "./StoriesPage.tsx";
 import {useDrag} from './DragContext';
 import CloseIcon from "@mui/icons-material/Close";
-import {alpha} from "@mui/material/styles";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
+import TranslateIcon from '@mui/icons-material/Translate';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import {alpha} from "@mui/material/styles";
 import api from "../../services/axiosClient.ts";
 
 interface ChatWindowProps {
@@ -34,7 +40,7 @@ interface ChatWindowProps {
     attachedStory: StorySummary | null;
     onAttachStory: (story: StorySummary | null) => void;
     onStoryAcquired: () => void;
-    onBack: () => void; // Added onBack prop
+    onBack: () => void;
 }
 
 export const ChatWindow = ({
@@ -52,16 +58,19 @@ export const ChatWindow = ({
                                attachedStory,
                                onAttachStory,
                                onStoryAcquired,
-                               onBack // Destructure onBack
-
+                               onBack
                            }: ChatWindowProps) => {
     const theme = useTheme();
     const [isInfoOpen, setIsInfoOpen] = useState(false);
 
     const {draggedStory, setDraggedStory} = useDrag();
-    const [isDragOver, setIsDragOver] = useState(false)
+    const [isDragOver, setIsDragOver] = useState(false);
 
     const [subscribedIds, setSubscribedIds] = useState<Set<string>>(new Set());
+
+    // --- Simplification State ---
+    const [simplifyingId, setSimplifyingId] = useState<string | null>(null);
+    const [simplifiedData, setSimplifiedData] = useState<Record<string, { text: string, isAdjusting: boolean }>>({});
 
     async function subscribeToStory(storyId: string): Promise<{ story_id: string; message: string }> {
         try {
@@ -79,6 +88,45 @@ export const ChatWindow = ({
         }
     }
 
+    // --- Simplification Handlers ---
+    const handleSimplifyMessage = async (msgId: string, content: string) => {
+        setSimplifyingId(msgId);
+        try {
+            const res = await api.post('/stories/simplify', {selected_text: content});
+            setSimplifiedData(prev => ({
+                ...prev,
+                [msgId]: {text: res.data.simplified_text, isAdjusting: false}
+            }));
+        } catch (err) {
+            console.error("Failed to simplify message:", err);
+        } finally {
+            setSimplifyingId(null);
+        }
+    };
+
+    const handleAdjustMessage = async (msgId: string, content: string, higher: boolean) => {
+        setSimplifiedData(prev => ({
+            ...prev,
+            [msgId]: {...prev[msgId], isAdjusting: true}
+        }));
+        try {
+            const res = await api.post('/stories/simplify-adjusted', {
+                selected_text: content,
+                higher: higher
+            });
+            setSimplifiedData(prev => ({
+                ...prev,
+                [msgId]: {text: res.data.simplified_text, isAdjusting: false}
+            }));
+        } catch (err) {
+            console.error("Failed to adjust simplification:", err);
+            setSimplifiedData(prev => ({
+                ...prev,
+                [msgId]: {...prev[msgId], isAdjusting: false}
+            }));
+        }
+    };
+
     if (!activeId || !conversation)
         return null;
 
@@ -87,7 +135,7 @@ export const ChatWindow = ({
     return (
         <Box sx={{flex: 1, display: 'flex', flexDirection: 'column', height: '100%', bgcolor: 'background.paper'}}>
 
-            {/* --- 2. Modern Flat Header --- */}
+            {/* --- Header --- */}
             <AppBar
                 position="static"
                 color="inherit"
@@ -96,13 +144,11 @@ export const ChatWindow = ({
                     bgcolor: 'background.paper',
                     borderBottom: 1,
                     borderColor: 'divider',
-                    px: 1, // Reduced padding to accommodate back button
+                    px: 1,
                     py: 0.5
                 }}
             >
                 <Toolbar disableGutters sx={{minHeight: '64px !important'}}>
-
-                    {/* BACK BUTTON */}
                     <IconButton
                         onClick={onBack}
                         sx={{
@@ -114,7 +160,6 @@ export const ChatWindow = ({
                         <ArrowBackIcon/>
                     </IconButton>
 
-                    {/* CLICKABLE INFO SECTION */}
                     <Box
                         onClick={() => setIsInfoOpen(true)}
                         sx={{
@@ -151,7 +196,6 @@ export const ChatWindow = ({
                         </Box>
                     </Box>
 
-                    {/* 1. Semantic Search */}
                     <Tooltip title="Semantic Search">
                         <IconButton onClick={onOpenSemanticSearch} sx={{
                             color: 'action.active',
@@ -165,12 +209,10 @@ export const ChatWindow = ({
                             }}/>
                         </IconButton>
                     </Tooltip>
-
-
                 </Toolbar>
             </AppBar>
 
-            {/* --- 3. Clean Chat Area --- */}
+            {/* --- Chat Area --- */}
             <Box sx={{
                 flex: 1,
                 p: 3,
@@ -187,6 +229,7 @@ export const ChatWindow = ({
                     const isMine = msg.isMine;
                     const highlightBg = theme.palette.mode === 'light' ? '#fff9c4' : '#423d04';
                     const attachment = msg.attachedStory;
+                    const simplified = simplifiedData[msgId];
 
                     const DIFFICULTY_COLORS: Record<string, string> = {
                         A1: '#4ade80', A2: '#86efac',
@@ -239,6 +282,10 @@ export const ChatWindow = ({
                                         position: 'relative',
                                         wordWrap: 'break-word',
                                         minWidth: attachment ? 260 : 'unset',
+                                        // HOVER EFFECT: Show simplify button on hover
+                                        '&:hover .simplify-action': {
+                                            opacity: 0.7,
+                                        }
                                     }}
                                 >
                                     {/* Group sender name */}
@@ -425,21 +472,144 @@ export const ChatWindow = ({
                                         </Typography>
                                     )}
 
-                                    <Typography variant="caption" sx={{
-                                        display: 'block',
-                                        textAlign: 'right',
-                                        mt: 0.5,
-                                        fontSize: '0.7rem',
-                                        opacity: 0.8,
-                                        color: 'inherit'
+                                    {/* Timestamp & Simplify Action */}
+                                    <Box sx={{
+                                        display: 'flex',
+                                        justifyContent: isMine ? 'flex-end' : 'space-between',
+                                        alignItems: 'center',
+                                        mt: 0.5
                                     }}>
-                                        {new Date(msg.timestamp).toLocaleTimeString([], {
-                                            hour: '2-digit',
-                                            minute: '2-digit'
-                                        })}
-                                    </Typography>
+                                        {!isMine && msg.content && !simplified && (
+                                            <Box
+                                                className="simplify-action"
+                                                onClick={() => handleSimplifyMessage(msgId, msg.content)}
+                                                sx={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 0.5,
+                                                    cursor: 'pointer',
+                                                    // Hide by default, show if loading or hovered (via parent Paper)
+                                                    opacity: simplifyingId === msgId ? 0.8 : 0,
+                                                    transition: 'opacity 0.2s, color 0.2s',
+                                                    '&:hover': {opacity: '1 !important', color: 'primary.main'}
+                                                }}
+                                            >
+                                                {simplifyingId === msgId && (
+                                                    <CircularProgress size={12} color="inherit"/>
+                                                )}
+                                                <Typography variant="caption"
+                                                            sx={{fontSize: '0.65rem', fontWeight: 600}}>
+                                                    Simplify
+                                                </Typography>
+                                            </Box>
+                                        )}
+
+                                        <Typography variant="caption" sx={{
+                                            fontSize: '0.7rem',
+                                            opacity: 0.8,
+                                            color: 'inherit',
+                                            ml: isMine ? 0 : 2, // <-- Only add margin-left if it's NOT your message
+                                            mr: 0.1
+                                        }}>
+                                            {new Date(msg.timestamp).toLocaleTimeString([], {
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })}
+                                        </Typography>
+                                    </Box>
                                 </Paper>
                             </Box>
+
+                            {/* --- Inline Simplified View Box --- */}
+                            {simplified && !isMine && (
+                                <Box sx={{
+                                    mt: 0.5,
+                                    ml: 1,
+                                    p: 1.5,
+                                    bgcolor: alpha(theme.palette.primary.main, 0.05),
+                                    border: '1px solid',
+                                    borderColor: alpha(theme.palette.primary.main, 0.2),
+                                    borderRadius: 2,
+                                    maxWidth: '75%',
+                                    position: 'relative'
+                                }}>
+                                    <Box sx={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        mb: 1
+                                    }}>
+                                        <Box sx={{display: 'flex', alignItems: 'center', gap: 0.5}}>
+                                            <TranslateIcon sx={{fontSize: 14, color: 'primary.main'}}/>
+                                            <Typography variant="caption" color="primary.main" fontWeight="bold">
+                                                Simplified
+                                            </Typography>
+                                        </Box>
+                                        <IconButton
+                                            size="small"
+                                            onClick={() => {
+                                                setSimplifiedData(prev => {
+                                                    const next = {...prev};
+                                                    delete next[msgId];
+                                                    return next;
+                                                });
+                                            }}
+                                            sx={{p: 0, mt: -0.5, mr: -0.5}}
+                                        >
+                                            <CloseIcon sx={{fontSize: 14}}/>
+                                        </IconButton>
+                                    </Box>
+
+                                    <Box sx={{minHeight: 40, display: 'flex', alignItems: 'center'}}>
+                                        {simplified.isAdjusting ? (
+                                            <CircularProgress size={16} sx={{mx: 'auto'}}/>
+                                        ) : (
+                                            <Typography variant="body2" color="text.primary" sx={{lineHeight: 1.5}}>
+                                                {simplified.text}
+                                            </Typography>
+                                        )}
+                                    </Box>
+
+                                    <Divider sx={{my: 1, borderColor: alpha(theme.palette.primary.main, 0.1)}}/>
+
+                                    <Box sx={{display: 'flex', gap: 1}}>
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            color="warning"
+                                            disabled={simplified.isAdjusting}
+                                            onClick={() => handleAdjustMessage(msgId, msg.content, false)}
+                                            startIcon={<TrendingDownIcon/>}
+                                            sx={{
+                                                flex: 1,
+                                                textTransform: 'none',
+                                                fontSize: '0.65rem',
+                                                py: 0.25,
+                                                borderColor: alpha(theme.palette.warning.main, 0.3)
+                                            }}
+                                        >
+                                            Easier
+                                        </Button>
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            color="info"
+                                            disabled={simplified.isAdjusting}
+                                            onClick={() => handleAdjustMessage(msgId, msg.content, true)}
+                                            startIcon={<TrendingUpIcon/>}
+                                            sx={{
+                                                flex: 1,
+                                                textTransform: 'none',
+                                                fontSize: '0.65rem',
+                                                py: 0.25,
+                                                borderColor: alpha(theme.palette.info.main, 0.3)
+                                            }}
+                                        >
+                                            Harder
+                                        </Button>
+                                    </Box>
+                                </Box>
+                            )}
 
                             {msg.ankiReview && (
                                 <Box sx={{mt: 1}}>

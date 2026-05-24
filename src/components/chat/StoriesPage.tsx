@@ -10,6 +10,7 @@ import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import {alpha} from '@mui/material/styles';
 import SearchIcon from '@mui/icons-material/Search';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
